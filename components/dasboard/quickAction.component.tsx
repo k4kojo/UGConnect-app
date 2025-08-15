@@ -8,6 +8,8 @@ type QuickActionsProps = {
 };
 
 const QuickActionsSection = ({ themeColors }: QuickActionsProps) => {
+  // For now, this section doesn't fetch; keeping a simple prop-based switch
+  // You can pass a loading prop here if you later make it async
   const cards = [
     {
       title: "Book Appointment",

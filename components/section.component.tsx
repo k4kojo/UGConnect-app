@@ -4,18 +4,19 @@ import { router } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-type Props = {
+type Props = React.PropsWithChildren<{
   title: string;
   viewAll?: boolean;
   emptyMessage: string;
   destination?: string;
-};
+}>;
 
 const Section = ({
   title,
   viewAll = true,
   emptyMessage,
   destination,
+  children,
 }: Props) => {
   const { theme } = useThemeContext();
   const themeColors = Colors[theme];
@@ -25,7 +26,7 @@ const Section = ({
     <View style={styles.sectionContainer}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: themeColors.text }]}>{title}</Text>
-        {viewAll && (
+        {viewAll && destination && (
           <TouchableOpacity onPress={() => router.push(destination as any)}>
             <Text style={[styles.viewAll, { color: brandColors.primary }]}>
               View All
@@ -33,25 +34,28 @@ const Section = ({
           </TouchableOpacity>
         )}
       </View>
-      <View
-        style={[
-          styles.emptyBox,
-          {
-            backgroundColor: themeColors.subCard,
-            borderColor: themeColors.divider,
-          },
-        ]}
-      >
-        <Text style={{ color: themeColors.subText }}>{emptyMessage}</Text>
-      </View>
+      {children ? (
+        children
+      ) : (
+        <View
+          style={[
+            styles.emptyBox,
+            {
+              backgroundColor: themeColors.subCard,
+              borderColor: themeColors.divider,
+            },
+          ]}
+        >
+          <Text style={{ color: themeColors.subText }}>{emptyMessage}</Text>
+        </View>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   sectionContainer: {
-    marginTop: 30,
-    marginBottom: 30,
+    marginVertical: 10,
   },
   header: {
     flexDirection: "row",
@@ -70,7 +74,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 20,
     alignItems: "center",
-    marginTop: 10,
+    marginVertical: 10,
     borderWidth: 1,
   },
 });

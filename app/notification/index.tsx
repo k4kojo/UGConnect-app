@@ -1,3 +1,4 @@
+import NotificationSkeleton from "@/components/skeleton/NotificationSkeleton";
 import Colors from "@/constants/colors";
 import { useLanguage } from "@/context/LanguageContext";
 import { useThemeContext } from "@/context/ThemeContext";
@@ -9,7 +10,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator, RefreshControl, ScrollView,
+  RefreshControl, ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -112,9 +113,7 @@ const NotificationScreen = () => {
         }
       >
         {isLoading ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="small" color={themeColors.text} />
-          </View>
+          <NotificationSkeleton groups={2} itemsPerGroup={3} />
         ) : items.length === 0 ? (
           <Text style={{ padding: 16, color: themeColors.subText }}>
             {t("notifications.empty")}

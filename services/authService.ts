@@ -74,9 +74,53 @@ export type AppointmentRecord = {
   updatedAt: string;
 };
 
-export const listAppointments = async (params?: { status?: string }) => {
+export const listAppointments = async (params?: { status?: string; limit?: number }) => {
   const res = await api.get("/api/v0/appointments", { params });
   return res.data as AppointmentRecord[];
+};
+
+// -------- Chat --------
+export type ChatRoom = {
+  chatRoomId: string;
+  patientId: string;
+  doctorId: string;
+  hasActiveCall?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ChatMessage = {
+  id: number;
+  chatRoomId: string;
+  senderId: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  isRead: boolean;
+  messageType?: string;
+  fileUrl?: string | null;
+};
+
+export const listChatRooms = async (): Promise<ChatRoom[]> => {
+  const res = await api.get("/api/v0/chat-rooms");
+  return res.data as ChatRoom[];
+};
+
+export const listRoomMessages = async (chatRoomId: string): Promise<ChatMessage[]> => {
+  const res = await api.get(`/api/v0/chat-messages/room/${chatRoomId}`);
+  return res.data as ChatMessage[];
+};
+
+export const sendRoomMessage = async (payload: {
+  chatRoomId: string;
+  content: string;
+}): Promise<ChatMessage> => {
+  const raw = await AsyncStorage.getItem("authUser");
+  const me = raw ? JSON.parse(raw) : null;
+  const senderId = me?.userId;
+  const body = { ...payload, senderId };
+  const res = await api.post("/api/v0/chat-messages", body);
+  return res.data as ChatMessage;
 };
 
 // Sign Up

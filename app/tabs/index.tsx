@@ -1,9 +1,12 @@
+import AppointmentCard, { AppointmentCardItem } from "@/components/appointmentCard";
 import QuickActionsSection from "@/components/dasboard/quickAction.component";
 import SideMenu from "@/components/dasboard/side-menu.component";
 import WelcomeCard from "@/components/dasboard/welcome-card.component";
 import HealthTips from "@/components/health-tips.component";
-import Loader from "@/components/loader.component";
 import Section from "@/components/section.component";
+import AppointmentCardSkeleton from "@/components/skeleton/AppointmentCardSkeleton";
+import DashboardSkeleton from "@/components/skeleton/DashboardSkeleton";
+import WelcomeCardSkeleton from "@/components/skeleton/WelcomeCardSkeleton";
 import TopHeader from "@/components/top-header.component";
 import Colors from "@/constants/colors";
 import { useLanguage } from "@/context/LanguageContext";
@@ -31,10 +34,11 @@ const Dashboard = () => {
   const [userName, setUserName] = useState<string>("");
   const [menuVisible, setMenuVisible] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const menuSlide = useRef(new Animated.Value(width)).current;
-
+  const [appointments, setAppointments] = useState<AppointmentCardItem[]>([]);
+  const [bootLoading, setBootLoading] = useState<boolean>(true);
+  const [appointmentsLoading, setAppointmentsLoading] = useState<boolean>(true);
   const { theme, toggleTheme } = useThemeContext();
   const themeColors = Colors[theme];
   const brandColors = Colors.brand;
@@ -42,19 +46,20 @@ const Dashboard = () => {
 
   useEffect(() => {
     const initializeData = async () => {
-      setIsLoading(true);
       try {
         await Promise.all([
           // fetchUserProfile(),
           loadStoredUser(),
           loadNotifications(),
+          loadAppointments(),
         ]);
-      } finally {
-        setIsLoading(false);
-      }
+      } finally {}
     };
     
     initializeData();
+    // Show skeleton briefly while first load runs
+    const t = setTimeout(() => setBootLoading(false), 600);
+    return () => clearTimeout(t);
   }, []);
 
   useFocusEffect(
@@ -68,7 +73,7 @@ const Dashboard = () => {
   const onRefresh = useCallback(async () => {
     try {
       setRefreshing(true);
-      await Promise.all([loadStoredUser(), loadNotifications()]);
+      await Promise.all([loadStoredUser(), loadNotifications(), loadAppointments()]);
     } finally {
       setRefreshing(false);
     }
@@ -83,21 +88,6 @@ const Dashboard = () => {
       // ignore
     }
   };
-
-  // const fetchUserProfile = async () => {
-  //   try {
-  //     const response = await fetch(
-  //       "https://randomuser.me/api/portraits/men/75.jpg"
-  //     );
-  //     const data = await response.json();
-  //     const imageUrl = data?.results?.[0]?.picture?.medium;
-
-  //     setProfileImage(imageUrl || null);
-  //   } catch (error) {
-  //     console.log("Error fetching profile:", error);
-  //     setProfileImage(null);
-  //   }
-  // };
 
   const loadStoredUser = async () => {
     try {
@@ -187,6 +177,93 @@ const Dashboard = () => {
     })
   ).current;
 
+  const loadAppointments = async () => {
+    try {
+      setAppointmentsLoading(true);
+      const { listAppointments, listDoctors } = await import("@/services/authService");
+      const [allAppointments, doctors] = await Promise.all([
+        listAppointments({ limit: 5 }).catch(() => [] as any[]),
+        listDoctors().catch(() => [] as any[]),
+      ]);
+
+      const now = Date.now();
+      const upcomingTwo = allAppointments
+        .filter((a: any) => new Date(a.appointmentDate).getTime() >= now)
+        .sort(
+          (a: any, b: any) =>
+            new Date(a.appointmentDate).getTime() -
+            new Date(b.appointmentDate).getTime()
+        )
+        .slice(0, 2)
+        .map((appt: any) => {
+          const when = new Date(appt.appointmentDate);
+          const dateStr = when.toLocaleDateString(undefined, {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          });
+          const timeStr = when.toLocaleTimeString(undefined, {
+            hour: "numeric",
+            minute: "2-digit",
+          });
+          const doc = (doctors || []).find(
+            (d: any) => String(d.doctorId) === String(appt.doctorId)
+          );
+          const docName = doc
+            ? `${doc.firstName ?? ""} ${doc.lastName ?? ""}`.trim() || "Doctor"
+            : appt.doctorName || "Doctor";
+
+          const status =
+            appt.status === "confirmed"
+              ? "confirmed"
+              : appt.status === "pending"
+              ? "pending"
+              : undefined;
+
+          return {
+            id: appt.appointmentId,
+            doctorName: docName,
+            specialty:
+              (doc && doc.specialization) || appt.doctorSpecialization || appt.appointmentMode,
+            date: dateStr,
+            time: timeStr,
+            type: /online/i.test(appt.appointmentMode) ? "Video Call" : "In-Person",
+            status,
+            imageUrl: doc && (doc as any).avatarUrl ? (doc as any).avatarUrl : undefined,
+          } as AppointmentCardItem;
+        });
+
+      setAppointments(upcomingTwo);
+    } catch (error) {
+      console.error('Error loading appointments:', error);
+      // Fallback: keep previous data and avoid spamming logs
+      // Optionally, you can show a toast here if desired
+    }
+    finally {
+      setAppointmentsLoading(false);
+    }
+  };
+
+  const handleJoinCall = (appointment: AppointmentCardItem) => {
+    router.push({
+      pathname: '/appointment/video-room',
+      params: { 
+        appointmentId: appointment.id.toString(),
+        doctorName: appointment.doctorName 
+      }
+    });
+  };
+  
+  const handleMessage = (appointment: AppointmentCardItem) => {
+    router.push({
+      pathname: '/appointment/chat',
+      params: { 
+        recipientId: appointment.id.toString(),
+        recipientName: appointment.doctorName 
+      }
+    });
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: themeColors.background }}>
       {/* Left-edge swipe area to open menu */}
@@ -215,12 +292,8 @@ const Dashboard = () => {
         </Pressable>
       )}
 
-      {isLoading ? (
-        <Loader 
-          fullScreen 
-          backgroundColor={themeColors.background}
-          color={brandColors.primary}
-        />
+      {bootLoading ? (
+        <DashboardSkeleton />
       ) : (
         <ScrollView
           contentContainerStyle={[
@@ -237,13 +310,17 @@ const Dashboard = () => {
             />
           }
         >
-          <WelcomeCard
-            profileImage={profileImage ?? undefined}
-            themeColors={themeColors}
-            brandColors={brandColors}
-            userName={userName}
-            onAvatarPress={() => router.push("/tabs/profile")}
-          />
+          {bootLoading ? (
+            <WelcomeCardSkeleton />
+          ) : (
+            <WelcomeCard
+              profileImage={profileImage ?? undefined}
+              themeColors={themeColors}
+              brandColors={brandColors}
+              userName={userName}
+              onAvatarPress={() => router.push("/tabs/profile")}
+            />
+          )}
 
           <QuickActionsSection themeColors={themeColors} />
 
@@ -251,7 +328,14 @@ const Dashboard = () => {
             title={t("home.upcomingAppointments")}
             emptyMessage={t("appointments.noPending")}
             destination="/tabs/appointment"
-          />
+          >
+            {appointmentsLoading ? (
+              <AppointmentCardSkeleton />
+            ) : appointments.length > 0 ? (
+              <AppointmentCard items={appointments} showActions={false} />
+            ) : null}
+          </Section>
+
           <Section
             title={t("home.recentPrescriptions")}
             emptyMessage={t("home.recentPrescriptions")}

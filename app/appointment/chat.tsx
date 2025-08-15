@@ -58,7 +58,6 @@ const ChatScreen = () => {
   const themeColors = Colors[theme];
 
   const [input, setInput] = useState("");
-  // Removed: const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const [editingId, setEditingId] = useState<string | null>(null);

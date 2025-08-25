@@ -1,4 +1,3 @@
-// Environment configuration for the webapp
 const config = {
 	// API Configuration
 	API_URL: 'https://healthcare-management-system-api.onrender.com/api/v0',

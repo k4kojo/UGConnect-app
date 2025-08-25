@@ -232,12 +232,41 @@ const AdminDashboard = () => {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {roleStats.map((stat) => (
-            <div key={stat.name} className="text-center">
-              <div className="text-2xl font-bold text-gray-900">{stat.count}</div>
-              <div className="text-sm text-gray-600 capitalize">{stat.name}</div>
-            </div>
-          ))}
+          {/* Doctor Count */}
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">{dashboardData.roleStats.doctor}</div>
+            <div className="text-sm text-gray-600">Doctor</div>
+          </div>
+          
+          {/* Patient Count */}
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">{dashboardData.roleStats.patient}</div>
+            <div className="text-sm text-gray-600">Patient</div>
+          </div>
+          
+          {/* Total Users */}
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">{dashboardData.totalUsers}</div>
+            <div className="text-sm text-gray-600">Total Users</div>
+          </div>
+          
+          {/* Total Appointments */}
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">{dashboardData.appointmentStats.total}</div>
+            <div className="text-sm text-gray-600">Total Appointments</div>
+          </div>
+          
+          {/* Total Revenue */}
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">{formatCurrency(dashboardData.paymentStats.totalRevenue)}</div>
+            <div className="text-sm text-gray-600">Total Revenue</div>
+          </div>
+          
+          {/* Pending Appointments */}
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">{dashboardData.appointmentStats.pending}</div>
+            <div className="text-sm text-gray-600">Pending Appointments</div>
+          </div>
         </div>
       </div>
 

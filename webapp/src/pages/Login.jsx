@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import hospitalBackground from '../assets/images/ug-image.png';
+import ugLogo from '../assets/images/ug_logo.png'; // ✅ Import UG logo
 import { useAuth } from '../contexts/AuthContext';
 
 const Login = () => {
@@ -58,7 +59,7 @@ const Login = () => {
       
       {/* Header Banner */}
       <div className="relative z-10 bg-blue-900 text-white py-3 px-6 shadow-lg">
-        <div className="flex justify-between items-center max-w-7xl mx-auto">
+        <div className="flex justify-center items-center max-w-7xl mx-auto">
           <h1 className="text-xl font-bold tracking-wide">
             UNIVERSITY OF GHANA HOSPITAL MANAGEMENT SYSTEM
           </h1>
@@ -74,6 +75,15 @@ const Login = () => {
           {/* Login Panel */}
           <div className="bg-white rounded-lg shadow-2xl overflow-hidden">
             
+            {/* UG Logo on top */}
+            <div className="flex justify-center mt-6 mb-4">
+              <img 
+                src={ugLogo} 
+                alt="UG Logo" 
+                className="h-20 w-auto object-contain"
+              />
+            </div>
+
             {/* Login Form */}
             <div className="px-6 pb-6">
               {/* Login Panel Header */}
@@ -142,16 +152,6 @@ const Login = () => {
                     Contact administrator
                   </a>
                 </div>
-              </div>
-
-            </div>
-            
-            {/* Demo Credentials */}
-            <div className="mt-6 bg-white bg-opacity-90 rounded-lg p-4 shadow-lg">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Demo Credentials:</h3>
-              <div className="text-xs text-gray-600 space-y-1">
-                <div><strong>Admin:</strong> admin@healthcare.com / Test@123</div>
-                <div><strong>Doctor:</strong> sarah.smith@doctor.com / Test@123</div>
               </div>
             </div>
           </div>

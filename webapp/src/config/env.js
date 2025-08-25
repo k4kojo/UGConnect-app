@@ -1,7 +1,7 @@
 // Environment configuration for the webapp
 const config = {
 	// API Configuration
-	API_URL: 'http://localhost:5500/api/v0',
+	API_URL: 'https://healthcare-management-system-api.onrender.com/api/v0',
 	
 	// Firebase Configuration (if needed for chat/notifications)
 	FIREBASE: {

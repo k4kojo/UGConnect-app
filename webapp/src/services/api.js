@@ -69,6 +69,7 @@ export const userAPI = {
   updateUser: (userId, userData) => api.put(`/user/${userId}`, userData),
   deleteUser: (userId) => api.delete(`/user/${userId}`),
   createUserByAdmin: (userData) => api.post('/user/create', userData),
+  toggleUserStatus: (userId, { isActive }) => api.patch(`/user/${userId}/status`, { isActive }),
 };
 
 export const appointmentAPI = {

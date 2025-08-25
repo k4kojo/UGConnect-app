@@ -18,19 +18,19 @@ import { Button, LoadingSpinner } from '../../components/ui';
 import { useData } from '../../contexts/DataContext';
 
 const DoctorConsultations = () => {
-  const { data, loading, error, fetchConsultations } = useData();
+  const { data, loading, error, fetchDoctorAppointments } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  // Use cached consultations data
-  const consultations = data.consultations || [];
+  // Use cached appointments data for consultations
+  const consultations = data.doctorAppointments || [];
 
-  // Load consultations if not already cached
+  // Load appointments if not already cached
   useEffect(() => {
-    if (!data.consultations) {
-      fetchConsultations();
+    if (!data.doctorAppointments) {
+      fetchDoctorAppointments();
     }
-  }, [data.consultations, fetchConsultations]);
+  }, [data.doctorAppointments, fetchDoctorAppointments]);
 
   // Show error toast if there's an error
   useEffect(() => {
@@ -109,7 +109,7 @@ const DoctorConsultations = () => {
                 <p>{error}</p>
               </div>
               <div className="mt-4">
-                <Button variant="outline" onClick={fetchConsultations}>
+                <Button variant="outline" onClick={() => fetchDoctorAppointments(true)}>
                   Try Again
                 </Button>
               </div>

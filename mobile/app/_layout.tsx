@@ -7,6 +7,9 @@ import { Provider } from "react-redux";
 
 import { LanguageProvider } from "@/context/LanguageContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { PaystackProvider } from "react-native-paystack-webview";
+
+const PAYSTACK_PUBLIC_KEY = process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY || "";
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
@@ -43,19 +46,21 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 export default function RootLayout() {
   return (
     <>
-      <Provider store={store}>
-        <ThemeProvider>
-          <LanguageProvider>
-            <AuthGate>
-              <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(auth)" options={{ gestureEnabled: false }} />
-              <Stack.Screen name="tabs" options={{ gestureEnabled: false }} />
-              </Stack>
-            </AuthGate>
-          </LanguageProvider>
-          <StatusBar style="auto" />
-        </ThemeProvider>
-      </Provider>
+      <PaystackProvider publicKey={PAYSTACK_PUBLIC_KEY} currency="GHS">
+        <Provider store={store}>
+          <ThemeProvider>
+            <LanguageProvider>
+              <AuthGate>
+                <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="(auth)" options={{ gestureEnabled: false }} />
+                <Stack.Screen name="tabs" options={{ gestureEnabled: false }} />
+                </Stack>
+              </AuthGate>
+            </LanguageProvider>
+            <StatusBar style="auto" />
+          </ThemeProvider>
+        </Provider>
+      </PaystackProvider>
     </>
   );
 }

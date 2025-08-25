@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { dashboardService } from '../services/dashboardService';
-import { doctorDashboardService } from '../services/doctorDashboardService';
+import { userAPI, userSettingsAPI } from '../services/api';
+import { dashboardService } from '../services/dashboardService.js';
+import { doctorDashboardService } from '../services/doctorDashboardService.js';
 import { useAuth } from './AuthContext';
 
 const DataContext = createContext();
@@ -29,7 +30,6 @@ export const DataProvider = ({ children }) => {
     adminPatients: null,
     adminPrescriptions: null,
     adminLabResults: null,
-    adminConsultations: null,
     adminNotifications: null,
     
     // New admin data
@@ -40,10 +40,14 @@ export const DataProvider = ({ children }) => {
     backups: null,
     users: null,
     
+    // Settings data
+    userProfile: null,
+    userSettings: null,
+    hospitalInfo: null,
+    
     // Shared data
     prescriptions: null,
     labResults: null,
-    consultations: null,
     notifications: null,
     chatRooms: null,
     chatMessages: null,
@@ -228,31 +232,6 @@ export const DataProvider = ({ children }) => {
     }
   };
 
-  const fetchConsultations = async (forceRefresh = false) => {
-    const key = 'consultations';
-    if (!forceRefresh && data[key] && !isDataStale(key)) {
-      return data[key];
-    }
-
-    setLoading(true);
-    try {
-      const service = user?.role === 'doctor' ? doctorDashboardService : dashboardService;
-      const response = await service.getConsultations();
-      if (response.success) {
-        updateData(key, response.data);
-        return response.data;
-      } else {
-        setError(response.error);
-        return null;
-      }
-    } catch (error) {
-      setError(error.message);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const fetchNotifications = async (forceRefresh = false) => {
     const key = 'notifications';
     if (!forceRefresh && data[key] && !isDataStale(key)) {
@@ -339,6 +318,32 @@ export const DataProvider = ({ children }) => {
     setLoading(true);
     try {
       const response = await doctorDashboardService.getDoctorPatients(user.userId);
+      if (response.success) {
+        updateData(key, response.data);
+        return response.data;
+      } else {
+        setError(response.error);
+        return null;
+      }
+    } catch (error) {
+      setError(error.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchDoctorAppointments = async (forceRefresh = false) => {
+    if (!user?.userId || user?.role !== 'doctor') return;
+    
+    const key = 'doctorAppointments';
+    if (!forceRefresh && data[key] && !isDataStale(key)) {
+      return data[key];
+    }
+
+    setLoading(true);
+    try {
+      const response = await doctorDashboardService.getDoctorAppointments(user.userId);
       if (response.success) {
         updateData(key, response.data);
         return response.data;
@@ -1078,6 +1083,169 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  // Settings-specific fetch methods
+  const fetchUserProfile = async (forceRefresh = false) => {
+    if (!user?.userId) return null;
+    
+    const key = 'userProfile';
+    if (!forceRefresh && data[key] && !isDataStale(key)) {
+      return data[key];
+    }
+
+    setLoading(true);
+    try {
+      const response = await userAPI.getCurrentUser(user.userId);
+      console.log('🔍 fetchUserProfile response:', response.data);
+      
+      if (response.data) {
+        // Convert profile picture to full URL if it exists
+        const userData = {
+          ...response.data,
+          profilePicture: response.data.profilePicture 
+            ? `/api/v0/user/profile-picture/${user.userId}`
+            : null
+        };
+        
+        console.log('🔍 Constructed userData:', userData);
+        updateData(key, userData);
+        return userData;
+      } else {
+        setError('Failed to fetch user profile');
+        return null;
+      }
+    } catch (error) {
+      // If user profile doesn't exist, return null instead of throwing error
+      if (error.response?.status === 404) {
+        console.warn('User profile not found, using defaults');
+        return null;
+      }
+      setError(error.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateUserProfile = async (profileData) => {
+    if (!user?.userId) return null;
+    
+    setLoading(true);
+    try {
+      const response = await userAPI.updateUser(user.userId, profileData);
+      if (response.data) {
+        // Update local state directly instead of refreshing
+        updateData('userProfile', { ...data.userProfile, ...response.data });
+        return response.data;
+      } else {
+        setError('Failed to update user profile');
+        return null;
+      }
+    } catch (error) {
+      setError(error.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchUserSettingsData = async (forceRefresh = false) => {
+    if (!user?.userId) return null;
+    
+    const key = 'userSettings';
+    if (!forceRefresh && data[key] && !isDataStale(key)) {
+      return data[key];
+    }
+
+    setLoading(true);
+    try {
+      const response = await userSettingsAPI.getUserSettings(user.userId);
+      if (response.data) {
+        updateData(key, response.data);
+        return response.data;
+      } else {
+        // Return default settings if none exist
+        const defaultSettings = {
+          notificationEnabled: true,
+          darkMode: false,
+          language: 'en'
+        };
+        updateData(key, defaultSettings);
+        return defaultSettings;
+      }
+    } catch (error) {
+      // If settings don't exist, return defaults instead of throwing error
+      if (error.response?.status === 404) {
+        const defaultSettings = {
+          notificationEnabled: true,
+          darkMode: false,
+          language: 'en'
+        };
+        updateData(key, defaultSettings);
+        return defaultSettings;
+      }
+      setError(error.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateUserSettingsData = async (settings) => {
+    if (!user?.userId) return null;
+    
+    setLoading(true);
+    try {
+      const response = await userSettingsAPI.updateUserSettings(user.userId, settings);
+      if (response.data) {
+        // Update local state directly instead of refreshing
+        updateData('userSettings', { ...data.userSettings, ...response.data });
+        return response.data;
+      } else {
+        setError('Failed to update user settings');
+        return null;
+      }
+    } catch (error) {
+      setError(error.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchHospitalInfoData = async (forceRefresh = false) => {
+    if (!user?.userId || user?.role !== 'admin') return null;
+    
+    const key = 'hospitalInfo';
+    if (!forceRefresh && data[key] && !isDataStale(key)) {
+      return data[key];
+    }
+
+    // Since hospital info endpoint doesn't exist, return default data
+    const defaultHospitalInfo = {
+      name: 'General Hospital',
+      address: '123 Medical Center Dr',
+      city: 'Healthcare City',
+      state: 'HC',
+      zipCode: '12345',
+      phone: '+1 (555) 987-6543',
+      email: 'info@generalhospital.com',
+      website: 'www.generalhospital.com',
+      timezone: 'America/New_York',
+      currency: 'USD'
+    };
+
+    updateData(key, defaultHospitalInfo);
+    return defaultHospitalInfo;
+  };
+
+  const updateHospitalInfoData = async (info) => {
+    if (!user?.userId || user?.role !== 'admin') return null;
+    
+    // Since hospital info endpoint doesn't exist, just update local state
+    updateData('hospitalInfo', info);
+    return info;
+  };
+
   // Doctor Availability API methods
   const fetchDoctorAvailability = async (forceRefresh = false) => {
     if (!user?.userId || user?.role !== 'doctor') return;
@@ -1155,7 +1323,6 @@ export const DataProvider = ({ children }) => {
         adminPatients: null,
         adminPrescriptions: null,
         adminLabResults: null,
-        adminConsultations: null,
         adminNotifications: null,
         doctors: null,
         payments: null,
@@ -1173,9 +1340,9 @@ export const DataProvider = ({ children }) => {
         securitySettings: null,
         notificationPreferences: null,
         doctorAvailability: null,
+        userProfile: null,
         prescriptions: null,
         labResults: null,
-        consultations: null,
         notifications: null,
         chatRooms: null,
         chatMessages: null,
@@ -1191,6 +1358,7 @@ export const DataProvider = ({ children }) => {
     error,
     fetchDoctorDashboard,
     fetchDoctorRecentActivity,
+    fetchDoctorAppointments,
     fetchDoctorPatients,
     fetchAdminDashboard,
     fetchAdminRecentActivity,
@@ -1228,10 +1396,15 @@ export const DataProvider = ({ children }) => {
     updateDoctorAvailability,
     fetchPrescriptions,
     fetchLabResults,
-    fetchConsultations,
     fetchNotifications,
     fetchChatRooms,
     fetchChatMessages,
+    fetchUserProfile,
+    updateUserProfile,
+    fetchUserSettingsData,
+    updateUserSettingsData,
+    fetchHospitalInfoData,
+    updateHospitalInfoData,
     updateData,
     isDataStale,
   };

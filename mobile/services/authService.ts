@@ -119,6 +119,18 @@ export const listAppointments = async (params?: { status?: string; limit?: numbe
   const res = await api.get("/api/v0/appointments", { params });
   return res.data as AppointmentRecord[];
 };
+// Create a payment record (patients can set providerRef and method; backend sets status)
+export const createPaymentRecord = async (payload: {
+  appointmentId: string;
+  userId: string;
+  amount: number;
+  method: "MTN MoMo" | "Telecel Cash" | "AirtelTigo Cash" | "Credit Card";
+  providerRef?: string | null;
+  metadata?: Record<string, any>;
+}) => {
+  const res = await api.post("/api/v0/payments", payload);
+  return res.data;
+};
 
 // -------- Chat --------
 export type ChatRoom = {

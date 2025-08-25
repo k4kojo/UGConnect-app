@@ -1,7 +1,7 @@
 import {
-  Edit,
-  Plus,
-  Trash2
+    Edit,
+    Plus,
+    Trash2
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';

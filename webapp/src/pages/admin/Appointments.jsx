@@ -1,14 +1,14 @@
 import {
-  Calendar,
-  Clock,
-  Edit,
-  Eye,
-  MessageCircle,
-  Phone,
-  Plus,
-  Search,
-  Trash2,
-  Video
+    Calendar,
+    Clock,
+    Edit,
+    Eye,
+    MessageCircle,
+    Phone,
+    Plus,
+    Search,
+    Trash2,
+    Video
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
@@ -19,20 +19,28 @@ import { useData } from '../../contexts/DataContext';
 
 const Appointments = () => {
   const { user } = useAuth();
-  const { data, loading, error, fetchAdminAppointments } = useData();
+  const { data, loading, error, fetchAdminAppointments, fetchDoctorAppointments } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedDate, setSelectedDate] = useState('');
 
-  // Use cached appointments data
-  const appointments = data.adminAppointments || [];
+  // Use cached appointments data based on user role
+  const appointments = user?.role === 'doctor' 
+    ? (data.doctorAppointments || [])
+    : (data.adminAppointments || []);
 
   // Load appointments if not already cached
   useEffect(() => {
-    if (!data.adminAppointments) {
-      fetchAdminAppointments();
+    if (user?.role === 'doctor') {
+      if (!data.doctorAppointments) {
+        fetchDoctorAppointments();
+      }
+    } else if (user?.role === 'admin') {
+      if (!data.adminAppointments) {
+        fetchAdminAppointments();
+      }
     }
-  }, [data.adminAppointments, fetchAdminAppointments]);
+  }, [data.doctorAppointments, data.adminAppointments, fetchDoctorAppointments, fetchAdminAppointments, user?.role]);
 
   // Show error toast if there's an error
   useEffect(() => {
@@ -76,8 +84,12 @@ const Appointments = () => {
     if (window.confirm('Are you sure you want to delete this appointment?')) {
       try {
         console.log('Deleting appointment:', appointment);
-        // Refresh the list
-        await fetchAdminAppointments(true);
+        // Refresh the list based on user role
+        if (user?.role === 'doctor') {
+          await fetchDoctorAppointments(true);
+        } else {
+          await fetchAdminAppointments(true);
+        }
       } catch (err) {
         toast.error('Failed to delete appointment');
         console.error('Error deleting appointment:', err);
@@ -121,7 +133,13 @@ const Appointments = () => {
                 <p>{error}</p>
               </div>
               <div className="mt-4">
-                <Button variant="outline" onClick={() => fetchAdminAppointments(true)}>
+                <Button variant="outline" onClick={() => {
+                  if (user?.role === 'doctor') {
+                    fetchDoctorAppointments(true);
+                  } else {
+                    fetchAdminAppointments(true);
+                  }
+                }}>
                   Try Again
                 </Button>
               </div>

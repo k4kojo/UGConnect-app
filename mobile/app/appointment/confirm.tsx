@@ -1,5 +1,8 @@
 import { createAppointment as createAppointmentAction } from "@/redux/appointmentsSlice";
 import { useAppDispatch } from "@/redux/store";
+import { createPaymentRecord } from "@/services/authService";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { usePaystack } from "react-native-paystack-webview";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -26,8 +29,10 @@ const ConfirmScreen = () => {
 
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const { popup } = usePaystack();
   const [reason, setReason] = useState("");
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const { initials, name, specialty, date, time, consultationType, fee, doctorId } =
     useLocalSearchParams();
@@ -62,21 +67,106 @@ const ConfirmScreen = () => {
       alert(t("confirm.choosePaymentMethod"));
       return;
     }
+    const hhmm = to24Hour(time as string);
+    const isoDate = new Date(`${date}T${hhmm}:00`).toISOString();
+
+    // Card flow: trigger Paystack popup first; on success, create appointment + payment
+    if (selectedMethod === "Credit/Debit Card") {
+      try {
+        const raw = await AsyncStorage.getItem("authUser");
+        const me = raw ? JSON.parse(raw) : null;
+        const email = me?.email as string | undefined;
+        const userId = me?.userId as string | undefined;
+        if (!email || !userId) {
+          alert(t("auth.missingEmail"));
+          return;
+        }
+
+        const amountMinor = Math.round(total * 100); // Paystack expects smallest currency unit
+        const reference = `MC_${Date.now()}`;
+        setIsProcessing(true);
+
+        popup.checkout({
+          email,
+          amount: amountMinor,
+          reference,
+          metadata: {
+            custom_fields: [
+              { display_name: "Doctor", variable_name: "doctor_id", value: String(doctorId || "") },
+              { display_name: "AppointmentDate", variable_name: "appointment_date", value: isoDate },
+            ],
+          },
+          onSuccess: async ({ transactionRef }: any) => {
+            try {
+              // Extract provider reference string from Paystack response
+              const providerRef = String(
+                transactionRef?.reference || transactionRef?.trxref || transactionRef?.transaction || reference
+              );
+
+              const created = await dispatch(
+                createAppointmentAction({
+                  doctorId: (doctorId as string) || "",
+                  appointmentDate: isoDate,
+                  appointmentAmount: String(total),
+                  appointmentMode: consultationType === "In-Person" ? "In-person" : "Online",
+                  reasonForVisit: reason || undefined,
+                  paymentMethod: "Credit Card",
+                })
+              ).unwrap();
+
+              const appointmentId = created?.appointmentId as string | undefined;
+              if (!appointmentId) {
+                throw new Error("Payment captured but appointment creation failed. Please contact support with ref: " + providerRef);
+              }
+
+              await createPaymentRecord({
+                appointmentId,
+                userId,
+                amount: total,
+                method: "Credit Card",
+                providerRef,
+                metadata: { paystack: transactionRef, reference },
+              });
+
+              router.replace("/appointment/success");
+            } catch (err: any) {
+              const msg = err?.response?.data?.error || err?.message || t("confirm.bookingFailed");
+              alert(msg);
+            } finally {
+              setIsProcessing(false);
+            }
+          },
+          onCancel: () => {
+            setIsProcessing(false);
+            alert(t("payments.cancelled"));
+          },
+          onError: (err: any) => {
+            setIsProcessing(false);
+            const msg = err?.message || t("payments.failed");
+            alert(msg);
+          },
+        });
+      } catch (e: any) {
+        setIsProcessing(false);
+        const message = typeof e === "string" ? e : (e?.response?.data?.error || e?.message || t("payments.failed"));
+        alert(message);
+      }
+      return;
+    }
+
+    // Non-card flows proceed to create appointment directly
     try {
-      const hhmm = to24Hour(time as string);
-      const isoDate = new Date(`${date}T${hhmm}:00`).toISOString();
-      const res = await dispatch(createAppointmentAction({
-        doctorId: (doctorId as string) || "",
-        appointmentDate: isoDate,
-        appointmentAmount: String(total),
-        appointmentMode: consultationType === "In-Person" ? "In-person" : "Online",
-        reasonForVisit: reason || undefined,
-        paymentMethod:
-          selectedMethod === "Credit/Debit Card"
-            ? "Credit Card"
-            : (selectedMethod as any),
-      })).unwrap();
-      router.replace("/appointment/success");
+      const created = await dispatch(
+        createAppointmentAction({
+          doctorId: (doctorId as string) || "",
+          appointmentDate: isoDate,
+          appointmentAmount: String(total),
+          appointmentMode: consultationType === "In-Person" ? "In-person" : "Online",
+          reasonForVisit: reason || undefined,
+          paymentMethod: selectedMethod as any,
+        })
+      ).unwrap();
+      if (created) router.replace("/appointment/success");
     } catch (e: any) {
       const message = typeof e === "string" ? e : (e?.response?.data?.error || e?.message || t("confirm.bookingFailed"));
       alert(message);
@@ -333,10 +423,13 @@ const ConfirmScreen = () => {
 
       {/* Confirm Button */}
       <TouchableOpacity
-        style={[styles.submitBtn, { backgroundColor: Colors.brand.primary }]}
+        style={[styles.submitBtn, { backgroundColor: Colors.brand.primary, opacity: isProcessing ? 0.7 : 1 }]}
         onPress={handleConfirm}
+        disabled={isProcessing}
       >
-        <Text style={[styles.submitText, {color: themeColors.text}]}>{t("confirm.confirmAndPay", { amount: total })}</Text>
+        <Text style={[styles.submitText, {color: themeColors.text}]}>
+          {isProcessing ? t("common.processing") : t("confirm.confirmAndPay", { amount: total })}
+        </Text>
       </TouchableOpacity>
     </ScrollView>
       </KeyboardAvoidingView>

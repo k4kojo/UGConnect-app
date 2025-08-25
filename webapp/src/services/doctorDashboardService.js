@@ -182,14 +182,18 @@ class DoctorDashboardService {
       const appointmentsResponse = await appointmentAPI.getAll();
       const appointments = appointmentsResponse.data || [];
       
-      // Extract unique patients
+      // Extract unique patients with proper data structure
       const uniquePatients = appointments.reduce((acc, apt) => {
         if (!acc.find(p => p.patientId === apt.patientId)) {
           acc.push({
             patientId: apt.patientId,
-            patientName: apt.patientName || `${apt.patientFirstName || ''} ${apt.patientLastName || ''}`.trim(),
+            firstName: apt.patientFirstName || '',
+            lastName: apt.patientLastName || '',
+            email: apt.patientEmail || '',
+            phoneNumber: apt.patientPhoneNumber || '',
             lastAppointment: apt.appointmentDate,
-            totalAppointments: appointments.filter(a => a.patientId === apt.patientId).length
+            appointmentCount: appointments.filter(a => a.patientId === apt.patientId).length,
+            recentReason: apt.reasonForVisit || ''
           });
         }
         return acc;
@@ -240,21 +244,7 @@ class DoctorDashboardService {
     }
   }
 
-  async getConsultations() {
-    try {
-      const response = await appointmentAPI.getAll({ status: 'in-progress' });
-      return {
-        success: true,
-        data: response.data || []
-      };
-    } catch (error) {
-      console.error('Error fetching consultations:', error);
-      return {
-        success: false,
-        error: error.response?.data?.error || error.message || 'Failed to fetch consultations'
-      };
-    }
-  }
+
 
   async getNotifications() {
     try {

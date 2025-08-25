@@ -183,21 +183,7 @@ class DashboardService {
     }
   }
 
-  async getConsultations() {
-    try {
-      const response = await appointmentAPI.getAll({ status: 'in-progress' });
-      return {
-        success: true,
-        data: response.data || []
-      };
-    } catch (error) {
-      console.error('Error fetching consultations:', error);
-      return {
-        success: false,
-        error: error.response?.data?.error || error.message || 'Failed to fetch consultations'
-      };
-    }
-  }
+
 
   async getNotifications() {
     try {

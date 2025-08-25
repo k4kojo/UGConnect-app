@@ -1,24 +1,24 @@
 import {
-  Calendar,
-  CheckCircle,
-  Clock,
-  FileText,
-  TestTube,
-  User,
-  Users
+    Calendar,
+    CheckCircle,
+    Clock,
+    FileText,
+    TestTube,
+    User,
+    Users
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import {
-  AppointmentCard,
-  Button,
-  Calendar as CalendarComponent,
-  LoadingSpinner,
-  Modal,
-  Noticeboard,
-  QuickActionCard,
-  StatCard
+    AppointmentCard,
+    Button,
+    Calendar as CalendarComponent,
+    LoadingSpinner,
+    Modal,
+    Noticeboard,
+    QuickActionCard,
+    StatCard
 } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useData } from '../../contexts/DataContext.jsx';

@@ -23,21 +23,21 @@ import { useData } from '../../contexts/DataContext';
 
 const Consultations = () => {
   const { user } = useAuth();
-  const { data, loading, error, fetchConsultations } = useData();
+  const { data, loading, error, fetchAdminAppointments } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedConsultation, setSelectedConsultation] = useState(null);
   const [showModal, setShowModal] = useState(false);
 
-  // Use cached consultations data
-  const consultations = data.consultations || [];
+  // Use cached appointments data for consultations
+  const consultations = data.adminAppointments || [];
 
-  // Load consultations if not already cached
+  // Load appointments if not already cached
   useEffect(() => {
-    if (!data.consultations) {
-      fetchConsultations();
+    if (!data.adminAppointments) {
+      fetchAdminAppointments();
     }
-  }, [data.consultations, fetchConsultations]);
+  }, [data.adminAppointments, fetchAdminAppointments]);
 
   // Show error toast if there's an error
   useEffect(() => {
@@ -48,9 +48,12 @@ const Consultations = () => {
 
   // Filter consultations based on search and status
   const filteredConsultations = consultations.filter(consultation => {
+    const patientName = `${consultation.patientFirstName || ''} ${consultation.patientLastName || ''}`.trim();
+    const doctorName = `${consultation.doctorFirstName || ''} ${consultation.doctorLastName || ''}`.trim();
+    
     const matchesSearch = !searchTerm || 
-      consultation.patientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      consultation.doctorName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      doctorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       consultation.reasonForVisit?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = filterStatus === 'all' || consultation.status === filterStatus;
@@ -85,8 +88,8 @@ const Consultations = () => {
   const handleStartConsultation = async (consultation) => {
     try {
       console.log('Starting consultation:', consultation);
-      // Refresh consultations list
-      fetchConsultations(true);
+      // Refresh appointments list
+      fetchAdminAppointments(true);
     } catch (err) {
       console.error('Error starting consultation:', err);
     }
@@ -112,9 +115,9 @@ const Consultations = () => {
       header: 'Patient',
       render: (consultation) => (
         <div className="flex items-center">
-          <UserAvatar user={{ first_name: consultation.patientName?.split(' ')[0], last_name: consultation.patientName?.split(' ')[1] || '' }} size="sm" />
+          <UserAvatar user={{ first_name: consultation.patientFirstName || 'P', last_name: consultation.patientLastName || 'atient' }} size="sm" />
           <div className="ml-4">
-            <div className="text-sm font-medium text-gray-900">{consultation.patientName}</div>
+            <div className="text-sm font-medium text-gray-900">{`${consultation.patientFirstName || ''} ${consultation.patientLastName || ''}`.trim()}</div>
             <div className="text-sm text-gray-500">ID: {consultation.patientId}</div>
           </div>
         </div>
@@ -123,7 +126,7 @@ const Consultations = () => {
     {
       key: 'doctorName',
       header: 'Doctor',
-      render: (consultation) => <div className="text-sm text-gray-900">{consultation.doctorName}</div>
+      render: (consultation) => <div className="text-sm text-gray-900">{`${consultation.doctorFirstName || ''} ${consultation.doctorLastName || ''}`.trim()}</div>
     },
     {
       key: 'consultationType',
@@ -256,7 +259,7 @@ const Consultations = () => {
             <p>User Email: {user?.email || 'Not set'}</p>
             <p>Token: {localStorage.getItem('token') ? 'Present' : 'Missing'}</p>
             <button
-              onClick={fetchConsultations}
+                              onClick={() => fetchAdminAppointments(true)}
               className="mt-2 bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700"
             >
               Test API Call
@@ -300,12 +303,12 @@ const Consultations = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <h3 className="text-sm font-medium text-gray-500">Patient</h3>
-                    <p className="text-sm text-gray-900">{selectedConsultation.patientName}</p>
+                    <p className="text-sm text-gray-900">{`${selectedConsultation.patientFirstName || ''} ${selectedConsultation.patientLastName || ''}`.trim()}</p>
                     <p className="text-xs text-gray-500">ID: {selectedConsultation.patientId}</p>
                   </div>
                   <div>
                     <h3 className="text-sm font-medium text-gray-500">Doctor</h3>
-                    <p className="text-sm text-gray-900">{selectedConsultation.doctorName}</p>
+                    <p className="text-sm text-gray-900">{`${selectedConsultation.doctorFirstName || ''} ${selectedConsultation.doctorLastName || ''}`.trim()}</p>
                   </div>
                   <div>
                     <h3 className="text-sm font-medium text-gray-500">Consultation Type</h3>

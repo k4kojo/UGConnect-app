@@ -10,14 +10,31 @@ import {
   User
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, LoadingSpinner } from '../../components/ui';
+import { useAuth } from '../../contexts/AuthContext';
+import { useData } from '../../contexts/DataContext';
+import { uploadProfilePicture } from '../../services/profilePictureService';
 
 const Settings = () => {
   const navigate = useNavigate();
   const { tab } = useParams();
+  const { user } = useAuth();
+  const { 
+    data, 
+    loading: dataLoading, 
+    fetchUserProfile, 
+    updateUserProfile, 
+    fetchUserSettingsData, 
+    updateUserSettingsData, 
+    fetchHospitalInfoData, 
+    updateHospitalInfoData 
+  } = useData();
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [profilePictureLoading, setProfilePictureLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -127,18 +144,216 @@ const Settings = () => {
     navigate(`/admin/settings/${p}`);
   };
 
+  // Load user data and settings on component mount
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (!user?.userId) {
+        setInitialLoading(false);
+        return;
+      }
+      
+      try {
+        setInitialLoading(true);
+        
+        // Load all data in parallel for better performance
+        const [userData, userSettings, hospitalInfo] = await Promise.allSettled([
+          fetchUserProfile(),
+          fetchUserSettingsData().catch(() => null), // Gracefully handle missing settings
+          user?.role === 'admin' ? fetchHospitalInfoData().catch(() => null) : null
+        ]);
+        
+        // Update profile data
+        if (userData.status === 'fulfilled' && userData.value) {
+          console.log('🔍 Settings: userData.value:', userData.value);
+          setProfileData(prev => {
+            const newProfileData = {
+              ...prev,
+              firstName: userData.value.firstName || prev.firstName,
+              lastName: userData.value.lastName || prev.lastName,
+              email: userData.value.email || prev.email,
+              phone: userData.value.phoneNumber || prev.phone,
+              department: userData.value.department || prev.department,
+              position: userData.value.role || prev.position,
+              profilePicture: userData.value.profilePicture || prev.profilePicture,
+            };
+            console.log('🔍 Settings: newProfileData:', newProfileData);
+            return newProfileData;
+          });
+        }
+        
+        // Update notification data
+        if (userSettings.status === 'fulfilled' && userSettings.value) {
+          setNotificationData(prev => ({
+            ...prev,
+            emailNotifications: userSettings.value.notificationEnabled ?? prev.emailNotifications,
+          }));
+        }
+        
+        // Update hospital data (admin only)
+        if (user?.role === 'admin' && hospitalInfo.status === 'fulfilled' && hospitalInfo.value) {
+          setHospitalData(prev => ({
+            ...prev,
+            ...hospitalInfo.value,
+          }));
+        }
+        
+      } catch (error) {
+        console.error('Error loading user data:', error);
+        toast.error('Failed to load user data');
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+    
+    loadUserData();
+  }, [user?.userId, fetchUserProfile, fetchUserSettingsData, fetchHospitalInfoData]);
+
   const handleSave = async (settingsSection) => {
+    if (!user?.userId) {
+      toast.error('User not authenticated');
+      return;
+    }
+    
     setLoading(true);
     setSaveSuccess(false);
     
-    // Simulate API call
-    console.log(`Saving ${settingsSection} settings`);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    setLoading(false);
-    setSaveSuccess(true);
-    
-    setTimeout(() => setSaveSuccess(false), 3000);
+    try {
+      switch (settingsSection) {
+        case 'profile':
+          // Validate required fields
+          if (!profileData.firstName?.trim() || !profileData.lastName?.trim() || !profileData.email?.trim()) {
+            toast.error('First name, last name, and email are required');
+            setLoading(false);
+            return;
+          }
+          
+          // Validate email format
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(profileData.email)) {
+            toast.error('Please enter a valid email address');
+            setLoading(false);
+            return;
+          }
+          
+          await updateUserProfile({
+            firstName: profileData.firstName.trim(),
+            lastName: profileData.lastName.trim(),
+            email: profileData.email.trim(),
+            phoneNumber: profileData.phone?.trim() || '',
+            department: profileData.department?.trim() || '',
+          });
+          toast.success('Profile updated successfully');
+          break;
+          
+        case 'security':
+          if (securityData.newPassword) {
+            // Validate password requirements
+            if (securityData.newPassword.length < 8) {
+              toast.error('Password must be at least 8 characters long');
+              setLoading(false);
+              return;
+            }
+            
+            if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(securityData.newPassword)) {
+              toast.error('Password must contain at least one uppercase letter, one lowercase letter, and one number');
+              setLoading(false);
+              return;
+            }
+            
+            if (securityData.newPassword !== securityData.confirmPassword) {
+              toast.error('New passwords do not match');
+              setLoading(false);
+              return;
+            }
+            
+            if (!securityData.currentPassword) {
+              toast.error('Current password is required');
+              setLoading(false);
+              return;
+            }
+            
+            // Confirm password change
+            if (!window.confirm('Are you sure you want to change your password? You will need to log in again.')) {
+              setLoading(false);
+              return;
+            }
+          }
+          
+          if (securityData.newPassword) {
+            await updateUserProfile({
+              currentPassword: securityData.currentPassword,
+              newPassword: securityData.newPassword,
+            });
+            toast.success('Password updated successfully');
+            // Clear password fields
+            setSecurityData(prev => ({
+              ...prev,
+              currentPassword: '',
+              newPassword: '',
+              confirmPassword: '',
+            }));
+          }
+          break;
+          
+        case 'notifications':
+          await updateUserSettingsData({
+            notificationEnabled: notificationData.emailNotifications,
+          });
+          toast.success('Notification preferences updated successfully');
+          break;
+          
+        case 'hospital':
+          // Validate required hospital fields
+          if (!hospitalData.name?.trim() || !hospitalData.email?.trim()) {
+            toast.error('Hospital name and email are required');
+            setLoading(false);
+            return;
+          }
+          
+          // Validate hospital email format
+          const hospitalEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!hospitalEmailRegex.test(hospitalData.email)) {
+            toast.error('Please enter a valid hospital email address');
+            setLoading(false);
+            return;
+          }
+          
+          await updateHospitalInfoData({
+            ...hospitalData,
+            name: hospitalData.name.trim(),
+            email: hospitalData.email.trim(),
+            address: hospitalData.address?.trim() || '',
+            city: hospitalData.city?.trim() || '',
+            state: hospitalData.state?.trim() || '',
+            zipCode: hospitalData.zipCode?.trim() || '',
+            phone: hospitalData.phone?.trim() || '',
+            website: hospitalData.website?.trim() || '',
+          });
+          toast.success('Hospital information updated successfully');
+          break;
+          
+        case 'appearance':
+          await updateUserSettingsData({
+            darkMode: false, // You can add dark mode state if needed
+            language: 'en',
+          });
+          toast.success('Appearance settings updated successfully');
+          break;
+          
+        default:
+          toast.error('Unknown settings section');
+          break;
+      }
+      
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+      
+    } catch (error) {
+      console.error(`Error saving ${settingsSection} settings:`, error);
+      toast.error(`Failed to save ${settingsSection} settings`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleInputChange = (section, field, value) => {
@@ -163,25 +378,43 @@ const Settings = () => {
     }
   };
 
-  const handleProfilePictureChange = (event) => {
+  const handleProfilePictureChange = async (event) => {
     const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setDoctorData(prev => ({ ...prev, profilePicture: e.target.result }));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleAdminProfilePictureChange = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setProfileData(prev => ({ ...prev, profilePicture: e.target.result }));
-      };
-      reader.readAsDataURL(file);
+    if (file && user?.userId) {
+      // Reset file input for future uploads
+      event.target.value = '';
+      try {
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+          toast.error('Please select an image file');
+          return;
+        }
+        
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+          toast.error('Image size must be less than 5MB');
+          return;
+        }
+        
+        // Show loading state
+        setProfilePictureLoading(true);
+        
+        // Upload to backend - this will store the image as base64 in the database
+        const imageUrl = await uploadProfilePicture(file, user.userId);
+        
+        // Update profile data with the new image URL
+        setProfileData(prev => ({ ...prev, profilePicture: imageUrl }));
+        
+        // Don't call updateUserProfile here - the upload already updated the database
+        // The uploadProfilePicture function handles storing the image data
+        
+        toast.success('Profile picture updated successfully');
+      } catch (error) {
+        console.error('Error uploading profile picture:', error);
+        toast.error('Failed to upload profile picture');
+      } finally {
+        setProfilePictureLoading(false);
+      }
     }
   };
 
@@ -192,13 +425,22 @@ const Settings = () => {
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Profile Picture</h3>
         <div className="flex items-center space-x-6">
           <div className="flex-shrink-0">
-            <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
-              {profileData.profilePicture ? (
-                <img 
-                  src={profileData.profilePicture} 
-                  alt="Profile" 
-                  className="w-full h-full object-cover"
-                />
+            <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden relative">
+              {profilePictureLoading ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-200 bg-opacity-75 rounded-full">
+                  <LoadingSpinner size="sm" />
+                </div>
+              ) : profileData.profilePicture ? (
+                <>
+                  {console.log('🔍 Rendering profile picture:', profileData.profilePicture)}
+                  <img 
+                    src={profileData.profilePicture} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover"
+                    onError={(e) => console.error('🔍 Image load error:', e)}
+                    onLoad={() => console.log('🔍 Image loaded successfully')}
+                  />
+                </>
               ) : (
                 <User className="w-12 h-12 text-gray-400" />
               )}
@@ -211,12 +453,18 @@ const Settings = () => {
             <input
               type="file"
               accept="image/*"
-              onChange={handleAdminProfilePictureChange}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              onChange={handleProfilePictureChange}
+              disabled={profilePictureLoading}
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <p className="mt-1 text-xs text-gray-500">
-              Recommended: Square image, 400x400 pixels or larger
+              Recommended: Square image, 400x400 pixels or larger. Max size: 5MB
             </p>
+            {profilePictureLoading && (
+              <p className="mt-1 text-xs text-blue-600">
+                Uploading profile picture...
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -226,35 +474,38 @@ const Settings = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              First Name
+              First Name <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={profileData.firstName}
               onChange={(e) => handleInputChange('profile', 'firstName', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Last Name
+              Last Name <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={profileData.lastName}
               onChange={(e) => handleInputChange('profile', 'lastName', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
+              Email <span className="text-red-500">*</span>
             </label>
             <input
               type="email"
               value={profileData.email}
               onChange={(e) => handleInputChange('profile', 'email', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
             />
           </div>
           <div>
@@ -343,6 +594,19 @@ const Settings = () => {
                 className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
+            {securityData.newPassword && (
+              <div className="mt-2">
+                <div className="flex space-x-1">
+                  <div className={`h-1 flex-1 rounded ${securityData.newPassword.length >= 8 ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                  <div className={`h-1 flex-1 rounded ${/(?=.*[a-z])/.test(securityData.newPassword) ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                  <div className={`h-1 flex-1 rounded ${/(?=.*[A-Z])/.test(securityData.newPassword) ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                  <div className={`h-1 flex-1 rounded ${/(?=.*\d)/.test(securityData.newPassword) ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Password must be at least 8 characters with uppercase, lowercase, and number
+                </p>
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -637,8 +901,12 @@ const Settings = () => {
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Profile Picture</h3>
         <div className="flex items-center space-x-6">
           <div className="flex-shrink-0">
-            <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
-              {doctorData.profilePicture ? (
+            <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden relative">
+              {profilePictureLoading ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-200 bg-opacity-75 rounded-full">
+                  <LoadingSpinner size="sm" />
+                </div>
+              ) : doctorData.profilePicture ? (
                 <img 
                   src={doctorData.profilePicture} 
                   alt="Profile" 
@@ -657,11 +925,17 @@ const Settings = () => {
               type="file"
               accept="image/*"
               onChange={handleProfilePictureChange}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              disabled={profilePictureLoading}
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <p className="mt-1 text-xs text-gray-500">
-              Recommended: Square image, 400x400 pixels or larger
+              Recommended: Square image, 400x400 pixels or larger. Max size: 5MB
             </p>
+            {profilePictureLoading && (
+              <p className="mt-1 text-xs text-blue-600">
+                Uploading profile picture...
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -781,6 +1055,8 @@ const Settings = () => {
     </div>
   );
 
+
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'profile':
@@ -800,14 +1076,43 @@ const Settings = () => {
     }
   };
 
+  // Show loading spinner while initial data is loading
+  if (initialLoading && !data.userProfile) {
+    return (
+      <div className="h-full flex bg-gray-50">
+        <div className="flex-1 p-6">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center justify-center h-64">
+              <LoadingSpinner size="lg" />
+              <span className="ml-3 text-gray-600">Loading settings...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading indicator for background data loading
+  const showBackgroundLoading = initialLoading && data.userProfile;
+
   return (
     <div className="h-full flex bg-gray-50">
       <div className="flex-1 p-6">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-            <p className="text-gray-600">Manage your account settings and preferences</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+                <p className="text-gray-600">Manage your account settings and preferences</p>
+              </div>
+              {showBackgroundLoading && (
+                <div className="flex items-center space-x-2 text-sm text-blue-600">
+                  <LoadingSpinner size="sm" />
+                  <span>Loading additional data...</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Success Message */}

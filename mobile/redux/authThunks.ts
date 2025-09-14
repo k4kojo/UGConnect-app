@@ -1,12 +1,7 @@
 import {
-  getStoredUser,
-  resendVerification,
-  signInUser,
-  signInWithApple,
-  signInWithGoogle,
-  signUpUser,
-  verifyEmail,
-} from "@/services/authService";
+  authService,
+  userService,
+} from "@/services";
 import { createAsyncThunk } from "@reduxjs/toolkit";
 
 import {
@@ -25,7 +20,7 @@ export const loginUser = createAsyncThunk(
   ) => {
     try {
       dispatch(loginStart());
-      const result = await signInUser(email, password);
+      const result = await authService.signInUser(email, password);
 
       if (!result.success) {
         throw new Error(result.error);
@@ -55,7 +50,7 @@ export const registerUser = createAsyncThunk(
   ) => {
     try {
       dispatch(loginStart());
-      const result = await signUpUser(userData);
+      const result = await authService.signUpUser(userData);
 
       if (!result.success) {
         throw new Error(result.error);
@@ -75,7 +70,7 @@ export const googleLogin = createAsyncThunk(
   async (idToken: string, { dispatch }) => {
     try {
       dispatch(loginStart());
-      const result = await signInWithGoogle(idToken);
+      const result = await authService.signInWithGoogle(idToken);
       if (!result || !result.success || !result.data) {
         throw new Error("Google sign-in failed");
       }
@@ -96,7 +91,7 @@ export const appleLogin = createAsyncThunk(
   ) => {
     try {
       dispatch(loginStart());
-      const result = await signInWithApple(idToken, profile);
+      const result = await authService.signInWithApple(idToken, profile);
       if (!result || !result.success || !result.data) {
         throw new Error("Apple sign-in failed");
       }
@@ -110,14 +105,13 @@ export const appleLogin = createAsyncThunk(
 );
 
 // Logout thunk: clear storage and redux state
-import { logoutUser } from "@/services/authService";
 import { logout as logoutAction } from "./authSlice";
 
 export const logoutAndClear = createAsyncThunk(
   "auth/logout",
   async (_, { dispatch }) => {
     try {
-      await logoutUser();
+      await authService.logoutUser();
     } finally {
       dispatch(logoutAction());
     }
@@ -128,7 +122,7 @@ export const verifyUserEmail = createAsyncThunk(
   "auth/verifyEmail",
   async ({ email, code }: { email: string; code: string }, { dispatch }) => {
     try {
-      const result = await verifyEmail(email, code);
+      const result = await authService.verifyEmail(email, code);
 
       if (!result.success) {
         throw new Error(result.error);
@@ -146,7 +140,7 @@ export const resendVerificationCode = createAsyncThunk(
   "auth/resendVerification",
   async (email: string, { dispatch }) => {
     try {
-      const result = await resendVerification(email);
+      const result = await authService.resendVerification(email);
 
       if (!result.success) {
         throw new Error(result.error);
@@ -163,9 +157,9 @@ export const loadUserFromStorage = createAsyncThunk(
   "auth/loadUser",
   async (_, { dispatch }) => {
     try {
-      const user = await getStoredUser();
+      const user = await userService.getStoredUser();
       if (user) {
-        dispatch(loginSuccess(user));
+        dispatch(loginSuccess(user as any));
       }
       return user;
     } catch (error) {

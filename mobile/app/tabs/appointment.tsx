@@ -134,6 +134,7 @@ const Appointments = () => {
               ) : null}
 
               <AppointmentCard
+                isPast={selectedTab === "past"}
                 items={(selectedTab === "upcoming" ? upcoming : past).map((appt: any) => {
                   const when = new Date(appt.appointmentDate);
                   const dateStr = when.toLocaleDateString(undefined, {

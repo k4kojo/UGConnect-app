@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import ConsultationInfo from "@/components/consultation/consultationInfo.component";
 import NotesAndRecordings from "@/components/consultation/notesAndRecordings";
@@ -7,10 +7,12 @@ import Tabs from "@/components/consultation/tabs.component";
 import TopHeader from "@/components/top-header.component";
 import Colors from "@/constants/colors";
 import { useThemeContext } from "@/context/ThemeContext";
+import { fetchAppointments } from "@/redux/appointmentsSlice";
+import { fetchDoctors } from "@/redux/doctorsSlice";
+import { useAppDispatch, useAppSelector } from "@/redux/store";
 import { Ionicons } from "@expo/vector-icons";
 import {
   FlatList,
-  Image,
   Modal,
   RefreshControl,
   ScrollView,
@@ -32,49 +34,36 @@ const Consultation = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState(0);
 
-  const openModal = () => {
-    setModalVisible(true);
-  };
-
-  const upcomingConsultation = {
-    doctor: "Dr. Derick Agyeman",
-    specialty: "General Physician",
-    date: "16 June, 2025",
-    time: "11:00AM",
-    image: "https://randomuser.me/api/portraits/men/11.jpg",
-  };
-
-  const consultationHistory = [
-    {
-      id: "1",
-      doctor: "Dr. Kwame Appiah",
-      date: "May 20, 2024",
-    },
-    {
-      id: "2",
-      doctor: "Dr. Aisha Owusu",
-      date: "May 20, 2024",
-    },
-    {
-      id: "3",
-      doctor: "Dr. Clemet Adjei",
-      date: "May 20, 2024",
-    },
-  ];
-
   const { theme } = useThemeContext();
   const themeColors = Colors[theme];
   const brandColors = Colors.brand;
 
+  // Redux integration
+  const dispatch = useAppDispatch();
+  const { items: appointments, isLoading } = useAppSelector((s: any) => s.appointments);
+  const { items: doctors } = useAppSelector((s: any) => s.doctors);
+
+  useEffect(() => {
+    // Fetch appointments and doctors data
+    dispatch(fetchAppointments());
+    dispatch(fetchDoctors());
+  }, [dispatch]);
+
+  const openModal = () => {
+    setModalVisible(true);
+  };
+
   const onRefresh = React.useCallback(async () => {
     try {
       setRefreshing(true);
-      // Add any data reload logic here if needed
-      await new Promise((r) => setTimeout(r, 600));
+      await Promise.all([
+        dispatch(fetchAppointments()),
+        dispatch(fetchDoctors())
+      ]);
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [dispatch]);
 
   return (
     <View
@@ -85,93 +74,83 @@ const Consultation = () => {
       <View
         style={[styles.content, { backgroundColor: themeColors.background }]}
       >
-        {/* Upcoming Consultation */}
-        <Text style={[styles.sectionTitle, { color: themeColors.text }]}>
-          Upcoming Consultations
-        </Text>
-        <View
-          style={[
-            styles.card,
-            {
-              backgroundColor: themeColors.card,
-              borderColor: themeColors.border,
-            },
-          ]}
-        >
-          <View style={styles.doctorRow}>
-            <Image
-              source={{ uri: upcomingConsultation.image }}
-              style={styles.avatar}
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.doctorName, { color: themeColors.text }]}>
-                {upcomingConsultation.doctor}
-              </Text>
-              <Text style={[styles.specialty, { color: themeColors.subText }]}>
-                {upcomingConsultation.specialty}
-              </Text>
-            </View>
-          </View>
-
-          <Text style={[styles.datetime, { color: themeColors.subText }]}>
-            {upcomingConsultation.date} | {upcomingConsultation.time}
-          </Text>
-          <TouchableOpacity
-            style={[
-              styles.joinButton,
-              { backgroundColor: brandColors.primary },
-            ]}
-          >
-            <Text style={styles.joinButtonText}>Join Consultation</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Consultation History */}
         <Text style={[styles.sectionTitle, { color: themeColors.text }]}>
           Consultation History
         </Text>
-        <FlatList
-          data={consultationHistory}
-          keyExtractor={(item) => item.id}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={themeColors.text}
-            />
-          }
-          renderItem={({ item }) => (
-            <View
-              style={[
-                styles.historyItem,
-                {
-                  backgroundColor: themeColors.card,
-                  borderColor: themeColors.border,
-                },
-              ]}
-            >
-              <View>
-                <Text
-                  style={[styles.historyDoctor, { color: themeColors.text }]}
-                >
-                  {item.doctor}
-                </Text>
-                <Text
-                  style={[styles.historyDate, { color: themeColors.subText }]}
-                >
-                  {item.date}
-                </Text>
+        
+        {isLoading ? (
+          <View style={{ alignItems: "center", paddingVertical: 40 }}>
+            <Text style={{ color: themeColors.subText, fontSize: 14 }}>
+              Loading consultations...
+            </Text>
+          </View>
+        ) : appointments && appointments.length > 0 ? (
+          <FlatList
+            data={appointments.map((appt: any) => {
+              const when = new Date(appt.appointmentDate);
+              const dateStr = when.toLocaleDateString(undefined, {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              });
+              const doc = (doctors || []).find((d: any) => String(d.doctorId) === String(appt.doctorId));
+              const docName = doc ? `${doc.firstName ?? ""} ${doc.lastName ?? ""}`.trim() || "Doctor" : (appt.doctorName || "Doctor");
+              
+              return {
+                id: appt.appointmentId,
+                doctor: docName,
+                date: dateStr,
+                appointment: appt,
+              };
+            })}
+            keyExtractor={(item) => item.id}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={themeColors.text}
+              />
+            }
+            renderItem={({ item }) => (
+              <View
+                style={[
+                  styles.historyItem,
+                  {
+                    backgroundColor: themeColors.card,
+                    borderColor: themeColors.border,
+                  },
+                ]}
+              >
+                <View>
+                  <Text
+                    style={[styles.historyDoctor, { color: themeColors.text }]}
+                  >
+                    {item.doctor}
+                  </Text>
+                  <Text
+                    style={[styles.historyDate, { color: themeColors.subText }]}
+                  >
+                    {item.date}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={openModal}>
+                  <Text
+                    style={[styles.viewSummary, { color: brandColors.primary }]}
+                  >
+                    View summary
+                  </Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={openModal}>
-                <Text
-                  style={[styles.viewSummary, { color: brandColors.primary }]}
-                >
-                  View summary
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        />
+            )}
+          />
+        ) : (
+          <View style={{ alignItems: "center", paddingVertical: 40 }}>
+            <Text style={{ color: themeColors.subText, fontSize: 14 }}>
+              No consultation history found
+            </Text>
+          </View>
+        )}
       </View>
       <Modal
         visible={modalVisible}
@@ -267,44 +246,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     marginBottom: 10,
-  },
-  card: {
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 25,
-  },
-  doctorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-    gap: 10,
-  },
-  avatar: {
-    width: 45,
-    height: 45,
-    borderRadius: 25,
-    marginRight: 10,
-  },
-  doctorName: {
-    fontWeight: "600",
-    fontSize: 15,
-  },
-  specialty: {
-    fontStyle: "italic",
-  },
-  datetime: {
-    marginTop: 5,
-    marginBottom: 15,
-  },
-  joinButton: {
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  joinButtonText: {
-    color: "#fff",
-    fontWeight: "600",
   },
   historyItem: {
     borderWidth: 1,

@@ -24,9 +24,10 @@ type Props = {
   onJoinCall?: (item: AppointmentCardItem) => void;
   onMessage?: (item: AppointmentCardItem) => void;
   showActions?: boolean;
+  isPast?: boolean;
 };
 
-const AppointmentCard: React.FC<Props> = ({ items, onJoinCall, onMessage, showActions = true }) => {
+const AppointmentCard: React.FC<Props> = ({ items, onJoinCall, onMessage, showActions = true, isPast = false }) => {
   const { theme } = useThemeContext();
   const themeColors = Colors[theme];
   const brandColors = Colors.brand;
@@ -41,7 +42,7 @@ const AppointmentCard: React.FC<Props> = ({ items, onJoinCall, onMessage, showAc
             { 
               backgroundColor: themeColors.subCard,
               borderColor: themeColors.border 
-            }
+            },
           ]}
         >
           <View style={styles.headerRow}>
@@ -53,10 +54,16 @@ const AppointmentCard: React.FC<Props> = ({ items, onJoinCall, onMessage, showAc
               containerStyle={{ backgroundColor: Colors.brand.avatarBg, borderColor: Colors.brand.avatarBg }} 
             />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.doctorName, { color: themeColors.text }]}>
+              <Text style={[
+                styles.doctorName, 
+                { color: themeColors.text },
+              ]}>
                 {appointment.doctorName}
               </Text>
-              <Text style={[styles.specialty, { color: themeColors.subText }]}>
+              <Text style={[
+                styles.specialty, 
+                { color: themeColors.subText },
+              ]}>
                 {appointment.specialty}
               </Text>
             </View>
@@ -77,7 +84,13 @@ const AppointmentCard: React.FC<Props> = ({ items, onJoinCall, onMessage, showAc
                   {appointment.type === 'Video Call' ? 'Video Call' : 'In-Person'}
                 </Text>
               </View>
-              {appointment.status && (
+              {isPast ? (
+                <View style={[styles.badge, styles.badgeCompleted]}>
+                  <Text style={[styles.badgeText, { color: themeColors.subText }]}>
+                    Completed
+                  </Text>
+                </View>
+              ) : appointment.status ? (
                 <View
                   style={[
                     styles.badge,
@@ -98,21 +111,35 @@ const AppointmentCard: React.FC<Props> = ({ items, onJoinCall, onMessage, showAc
                     {appointment.status}
                   </Text>
                 </View>
-              )}
+              ) : null}
             </View>
           </View>
 
           <View style={styles.infoSection}>
             <View style={styles.datetimeContainer}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Ionicons name="calendar-outline" size={16} color={themeColors.subText} />
-                <Text style={[styles.date, { color: themeColors.subText }]}>
+                <Ionicons 
+                  name="calendar-outline" 
+                  size={16} 
+                  color={isPast ? themeColors.subText + '80' : themeColors.subText} 
+                />
+                <Text style={[
+                  styles.date, 
+                  { color: themeColors.subText }
+                ]}>
                   {appointment.date}
                 </Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Ionicons name="time-outline" size={16} color={themeColors.subText} />
-                <Text style={[styles.time, { color: themeColors.subText }]}>
+                <Ionicons 
+                  name="time-outline" 
+                  size={16} 
+                  color={isPast ? themeColors.subText + '80' : themeColors.subText} 
+                />
+                <Text style={[
+                  styles.time, 
+                  { color: themeColors.subText },
+                ]}>
                   {appointment.time}
                 </Text>
               </View>
@@ -121,7 +148,21 @@ const AppointmentCard: React.FC<Props> = ({ items, onJoinCall, onMessage, showAc
 
           {showActions && (
             <View style={styles.actionSection}>
-              {appointment.type === 'Video Call' ? (
+              {isPast ? (
+                <TouchableOpacity
+                  style={[
+                    styles.button, 
+                    styles.fullWidthButton,
+                    { borderColor: themeColors.border, backgroundColor: themeColors.border }
+                  ]}
+                  onPress={() => onMessage?.(appointment)}
+                >
+                  <Ionicons name="chatbubble-outline" size={18} color={themeColors.text} />
+                  <Text style={[styles.buttonText, { color: themeColors.text }]}>
+                    View Chat History
+                  </Text>
+                </TouchableOpacity>
+              ) : appointment.type === 'Video Call' ? (
                 <>
                   <TouchableOpacity
                     style={[
@@ -241,6 +282,15 @@ const styles = StyleSheet.create({
   badgePending: {
     backgroundColor: '#fff7ed',
   },
+  badgeCompleted: {
+    backgroundColor: '#f3f4f6',
+  },
+  // pastCard: {
+  //   opacity: 0.7,
+  // },
+  // pastText: {
+  //   opacity: 0.6,
+  // },
   datetimeContainer: {
     flexDirection: 'row',
     justifyContent: 'flex-start',

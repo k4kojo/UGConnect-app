@@ -1,4 +1,4 @@
-import { logoutUser } from "@/services/authService";
+import { authService } from "@/services";
 import { router } from "expo-router";
 import { useCallback, useState } from "react";
 import { Alert } from "react-native";
@@ -10,7 +10,7 @@ export function useHandleLogout() {
     if (loggingOut) return;
     setLoggingOut(true);
     try {
-      const res = await logoutUser();
+      const res = await authService.logoutUser();
       if (res.success) {
         router.replace("/(auth)/sign-in");
       } else {

@@ -1,8 +1,7 @@
 import {
   AppointmentRecord,
-  createAppointment as createAppointmentApi,
-  listAppointments,
-} from "@/services/authService";
+  appointmentService,
+} from "@/services";
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 type AppointmentsState = {
@@ -20,7 +19,7 @@ const initialState: AppointmentsState = {
 export const fetchAppointments = createAsyncThunk(
   "appointments/fetch",
   async (params?: { status?: string }) => {
-    const data = await listAppointments(params);
+    const data = await appointmentService.listAppointments(params);
     return data;
   }
 );
@@ -28,11 +27,11 @@ export const fetchAppointments = createAsyncThunk(
 export const createAppointment = createAsyncThunk(
   "appointments/create",
   async (
-    payload: Parameters<typeof createAppointmentApi>[0],
+    payload: Parameters<typeof appointmentService.createAppointment>[0],
     { rejectWithValue }
   ) => {
     try {
-      const res = await createAppointmentApi(payload);
+      const res = await appointmentService.createAppointment(payload);
       return res as any;
     } catch (e: any) {
       return rejectWithValue(e?.response?.data?.error || e?.message || "Failed to create appointment");

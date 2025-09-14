@@ -80,13 +80,13 @@ const Dashboard = () => {
 
   const loadStoredUser = async () => {
     try {
-      const { getStoredUser } = await import("@/services/authService");
-      const user = await getStoredUser();
+      const { userService } = await import("@/services");
+      const user = await userService.getStoredUser();
       if (user) {
         const fullName = user.firstName;
         const handle = (user.email?.split("@")[0]) || "";
         // Prefer username if present, else full name, else email handle
-        setUserName(user.username || fullName || handle);
+        setUserName(fullName || handle);
         // Prefer saved profile picture if present
         if (user.profilePicture) {
           setProfileImage(user.profilePicture);
@@ -169,10 +169,10 @@ const Dashboard = () => {
   const loadAppointments = async () => {
     try {
       setAppointmentsLoading(true);
-      const { listAppointments, listDoctors } = await import("@/services/authService");
+      const { appointmentService } = await import("@/services");
       const [allAppointments, doctors] = await Promise.all([
-        listAppointments({ limit: 5 }).catch(() => [] as any[]),
-        listDoctors().catch(() => [] as any[]),
+        appointmentService.listAppointments({ limit: 5 }).catch(() => [] as any[]),
+        appointmentService.listDoctors().catch(() => [] as any[]),
       ]);
 
       const now = Date.now();

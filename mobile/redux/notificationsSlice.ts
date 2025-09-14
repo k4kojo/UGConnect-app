@@ -1,8 +1,7 @@
 import {
-  fetchNotifications as fetchNotificationsApi,
-  markNotificationRead,
   NotificationItem,
-} from "@/services/authService";
+  notificationService,
+} from "@/services";
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 type NotificationsState = {
@@ -20,7 +19,7 @@ const initialState: NotificationsState = {
 export const fetchNotifications = createAsyncThunk(
   "notifications/fetch",
   async () => {
-    const data = await fetchNotificationsApi();
+    const data = await notificationService.fetchNotifications();
     return data;
   }
 );
@@ -28,7 +27,7 @@ export const fetchNotifications = createAsyncThunk(
 export const readNotification = createAsyncThunk(
   "notifications/read",
   async (id: number) => {
-    await markNotificationRead(id);
+    await notificationService.markNotificationRead(id);
     return id;
   }
 );

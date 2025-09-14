@@ -83,7 +83,10 @@ export function createCacheInterceptor() {
     // Error interceptor
     error: (error: any) => {
       if (__DEV__) {
-        console.error(`[CacheInterceptor] API Error:`, error.response?.status, error.config?.url);
+        const status = error.response?.status || 'Network Error';
+        const url = error.config?.url || 'Unknown URL';
+        const message = error.response?.data?.error || error.message || 'Unknown error';
+        console.error(`[CacheInterceptor] API Error: ${status} ${url} - ${message}`);
       }
       return Promise.reject(error);
     }

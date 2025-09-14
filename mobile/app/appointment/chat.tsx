@@ -1,14 +1,17 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Audio } from "expo-av";
-import * as ImagePicker from "expo-image-picker";
+import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioPlayer, useAudioRecorder } from "expo-audio";
 import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   Alert,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
+  Linking,
+  PanResponder,
   Platform,
   ScrollView,
   StyleSheet,
@@ -16,31 +19,28 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Linking,
-  PanResponder,
-  Keyboard,
 } from "react-native";
 
-import Colors from "@/constants/colors";
-import { useThemeContext } from "@/context/ThemeContext";
-import { useLanguage } from "@/context/LanguageContext";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import ChatBackground from "@/components/backgrounds/ChatBackground";
+import Colors from "@/constants/colors";
+import { useLanguage } from "@/context/LanguageContext";
+import { useThemeContext } from "@/context/ThemeContext";
 import {
+  deleteMessage,
   ensureChatRoom,
-  subscribeToMessages,
-  sendTextMessage,
-  sendImageMessage,
+  FireMessage,
+  getChatRoomMeta,
+  markMessagesDelivered,
+  markMessagesRead,
   sendAudioMessage,
   sendFileMessage,
-  markMessagesRead,
-  markMessagesDelivered,
-  FireMessage,
+  sendImageMessage,
+  sendTextMessage,
+  subscribeToMessages,
   updateTextMessage,
-  deleteMessage,
-  getChatRoomMeta,
 } from "@/firebase/chatService";
 import { ensureFirebaseAuth } from "@/services/authService";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type Message = {
   id: string;
@@ -72,9 +72,13 @@ const ChatScreen = () => {
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [currentPlayingId, setCurrentPlayingId] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  
+  // Audio hooks
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const audioPlayer = useAudioPlayer();
   const [isRecordingUI, setIsRecordingUI] = useState(false);
   const [recordMs, setRecordMs] = useState(0);
   const [gestureLocked, setGestureLocked] = useState(false);
@@ -319,19 +323,20 @@ const ChatScreen = () => {
   // WhatsApp-like audio recording helpers
   const startRecording = async () => {
     try {
-      const { granted } = await Audio.requestPermissionsAsync();
+      const { granted } = await requestRecordingPermissionsAsync();
       if (!granted) {
         Alert.alert("Permission Denied", "Microphone access is required.");
         return;
       }
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+      
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
       });
-      const { recording: newRecording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      setRecording(newRecording);
+      
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      setIsRecording(true);
       setIsRecordingUI(true);
       setRecordMs(0);
       setGestureLocked(false);
@@ -349,10 +354,10 @@ const ChatScreen = () => {
 
   const stopAndSendRecording = async () => {
     try {
-      if (!recording) return;
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      setRecording(null);
+      if (!isRecording) return;
+      audioRecorder.stop();
+      const uri = audioRecorder.uri;
+      setIsRecording(false);
       if (recordTimerRef.current) {
         clearInterval(recordTimerRef.current as any);
         recordTimerRef.current = null;
@@ -377,11 +382,11 @@ const ChatScreen = () => {
 
   const cancelRecording = async () => {
     try {
-      if (recording) {
-        await recording.stopAndUnloadAsync();
+      if (isRecording) {
+        audioRecorder.stop();
       }
     } catch {}
-    setRecording(null);
+    setIsRecording(false);
     if (recordTimerRef.current) {
       clearInterval(recordTimerRef.current as any);
       recordTimerRef.current = null;
@@ -429,41 +434,37 @@ const ChatScreen = () => {
     try {
       // Toggle off if the same message is playing
       if (playingId === msg.id) {
-        await soundRef.current?.unloadAsync();
-        soundRef.current = null;
+        audioPlayer.pause();
         setPlayingId(null);
         setPlaybackPos(0);
         setPlaybackDur(0);
         return;
       }
-      // Stop any existing sound
-      try {
-        await soundRef.current?.unloadAsync();
-      } catch {}
-      soundRef.current = null;
+      
       if (!msg.audio) return;
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: msg.audio },
-        { shouldPlay: true }
-      );
-      soundRef.current = sound;
+      
+      // Load and play the audio
+      await audioPlayer.replace({ uri: msg.audio });
+      await audioPlayer.play();
       setPlayingId(msg.id);
-      sound.setOnPlaybackStatusUpdate((status: any) => {
-        if (!status?.isLoaded) return;
-        if (typeof status.positionMillis === "number") {
-          setPlaybackPos(status.positionMillis);
+      
+      // Set up playback status updates
+      const updatePlaybackStatus = () => {
+        if (audioPlayer) {
+          setPlaybackPos(audioPlayer.currentTime || 0);
+          setPlaybackDur(audioPlayer.duration || 0);
+          
+          if (audioPlayer.playing) {
+            requestAnimationFrame(updatePlaybackStatus);
+          } else if (audioPlayer.currentTime >= audioPlayer.duration) {
+            // Audio finished
+            setPlayingId(null);
+            setPlaybackPos(0);
+            setPlaybackDur(0);
+          }
         }
-        if (typeof status.durationMillis === "number") {
-          setPlaybackDur(status.durationMillis);
-        }
-        if (status.didJustFinish) {
-          setPlayingId(null);
-          soundRef.current?.unloadAsync().catch(() => {});
-          soundRef.current = null;
-          setPlaybackPos(0);
-          setPlaybackDur(0);
-        }
-      });
+      };
+      updatePlaybackStatus();
     } catch (e) {
       console.warn("Audio playback failed", e);
       setPlayingId(null);
@@ -486,8 +487,7 @@ const ChatScreen = () => {
   useEffect(() => {
     return () => {
       // Cleanup audio resources
-      soundRef.current?.unloadAsync().catch(() => {});
-      soundRef.current = null;
+      audioPlayer.pause();
       if (recordTimerRef.current) {
         clearInterval(recordTimerRef.current as any);
         recordTimerRef.current = null;

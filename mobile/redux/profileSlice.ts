@@ -1,4 +1,4 @@
-import { fetchPatientProfile, upsertPatientProfile } from "@/services/authService";
+import { userService } from "@/services";
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 export type PatientUser = {
@@ -36,14 +36,14 @@ const initialState: ProfileState = {
 };
 
 export const loadPatientProfile = createAsyncThunk("profile/load", async () => {
-  const { user, profile } = await fetchPatientProfile();
+  const { user, profile } = await userService.fetchPatientProfile();
   return { user, profile } as { user: PatientUser; profile: PatientProfile };
 });
 
 export const savePatientProfile = createAsyncThunk(
   "profile/save",
-  async (updates: Parameters<typeof upsertPatientProfile>[0]) => {
-    const { user, profile } = await upsertPatientProfile(updates);
+  async (updates: Parameters<typeof userService.upsertPatientProfile>[0]) => {
+    const { user, profile } = await userService.upsertPatientProfile(updates);
     return { user, profile } as { user: PatientUser; profile: PatientProfile };
   }
 );

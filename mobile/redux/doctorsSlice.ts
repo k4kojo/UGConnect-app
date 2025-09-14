@@ -1,4 +1,4 @@
-import { listDoctors } from "@/services/authService";
+import { appointmentService } from "@/services";
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 export type DoctorItem = {
@@ -32,7 +32,7 @@ const initialState: DoctorsState = {
 };
 
 export const fetchDoctors = createAsyncThunk("doctors/fetch", async () => {
-  const data = await listDoctors();
+  const data = await appointmentService.listDoctors();
   return data as DoctorItem[];
 });
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import * as authService from '../services/authService';
+import { appointmentService, chatService, notificationService, userService } from '../services';
 import { CACHE_KEYS, CACHE_TTL, cacheService } from '../services/cacheService';
 
 interface UseCacheOptions<T> {
@@ -99,7 +99,7 @@ export function useDoctors(forceRefresh = false) {
   return useCache({
     key: CACHE_KEYS.DOCTORS,
     fetchFn: async () => {
-      return authService.listDoctors();
+      return appointmentService.listDoctors();
     },
     ttl: CACHE_TTL.MEDIUM,
     autoRefresh: false,
@@ -112,7 +112,7 @@ export function useAppointments(params?: { status?: string; limit?: number }) {
   return useCache({
     key: cacheKey,
     fetchFn: async () => {
-      return authService.listAppointments(params);
+      return appointmentService.listAppointments(params);
     },
     ttl: CACHE_TTL.SHORT,
     autoRefresh: true,
@@ -124,7 +124,7 @@ export function usePatientProfile() {
   return useCache({
     key: CACHE_KEYS.PATIENT_PROFILE,
     fetchFn: async () => {
-      return authService.fetchPatientProfile();
+      return userService.fetchPatientProfile();
     },
     ttl: CACHE_TTL.LONG,
     autoRefresh: false,
@@ -135,7 +135,7 @@ export function useNotifications() {
   return useCache({
     key: CACHE_KEYS.NOTIFICATIONS,
     fetchFn: async () => {
-      return authService.fetchNotifications();
+      return notificationService.fetchNotifications();
     },
     ttl: CACHE_TTL.SHORT,
     autoRefresh: true,
@@ -147,7 +147,7 @@ export function useChatRooms() {
   return useCache({
     key: CACHE_KEYS.CHAT_ROOMS,
     fetchFn: async () => {
-      return authService.listChatRooms();
+      return chatService.listChatRooms();
     },
     ttl: CACHE_TTL.SHORT,
     autoRefresh: true,
@@ -159,7 +159,7 @@ export function useChatMessages(roomId: string) {
   return useCache({
     key: CACHE_KEYS.CHAT_MESSAGES(roomId),
     fetchFn: async () => {
-      return authService.listRoomMessages(roomId);
+      return chatService.listRoomMessages(roomId);
     },
     ttl: CACHE_TTL.SHORT,
     autoRefresh: true,

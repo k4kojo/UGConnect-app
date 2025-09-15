@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { appointmentService, chatService, notificationService, userService } from '../services';
+import { appointmentService, chatService, notificationService, userService, medicalRecordsService } from '../services';
 import { CACHE_KEYS, CACHE_TTL, cacheService } from '../services/cacheService';
 
 interface UseCacheOptions<T> {
@@ -164,6 +164,40 @@ export function useChatMessages(roomId: string) {
     ttl: CACHE_TTL.SHORT,
     autoRefresh: true,
     refreshInterval: 10 * 1000, // 10 seconds
+  });
+}
+
+// Medical records related hooks
+export function useMedicalRecords() {
+  return useCache({
+    key: CACHE_KEYS.MEDICAL_RECORDS,
+    fetchFn: async () => {
+      return medicalRecordsService.getMedicalRecords();
+    },
+    ttl: CACHE_TTL.LONG,
+    autoRefresh: false,
+  });
+}
+
+export function usePrescriptions() {
+  return useCache({
+    key: CACHE_KEYS.PRESCRIPTIONS,
+    fetchFn: async () => {
+      return medicalRecordsService.getPrescriptions();
+    },
+    ttl: CACHE_TTL.LONG,
+    autoRefresh: false,
+  });
+}
+
+export function useLabResults() {
+  return useCache({
+    key: CACHE_KEYS.LAB_RESULTS,
+    fetchFn: async () => {
+      return medicalRecordsService.getLabResults();
+    },
+    ttl: CACHE_TTL.LONG,
+    autoRefresh: false,
   });
 }
 

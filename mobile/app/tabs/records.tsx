@@ -1,12 +1,17 @@
 import Loader from "@/components/loader.component";
+import EmptyState from "@/components/EmptyState";
 import LabResultModal from "@/components/modals/labResultModal";
 import PrescriptionModal from "@/components/modals/prescriptionsModal";
 import TopHeader from "@/components/top-header.component";
 import Colors from "@/constants/colors";
 import { useThemeContext } from "@/context/ThemeContext";
+import { useLanguage } from "@/context/LanguageContext";
+import type { MedicalRecord, LabResult as MedicalLabResult, Prescription as MedicalPrescription } from "@/services/medicalRecordsService";
+import { useLabResults, useMedicalRecords, usePrescriptions } from "@/hooks/useCache";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   FlatList,
   Modal,
   RefreshControl,
@@ -21,21 +26,9 @@ type RecordItem = {
   id: string;
   title: string;
   date?: string;
-  type: "lab" | "prescription" | "header";
+  type: "lab" | "prescription" | "medical" | "header";
+  data?: MedicalRecord | MedicalPrescription | MedicalLabResult;
 };
-
-const labResults: RecordItem[] = [
-  { id: "lab-header", title: "Lab Results", type: "header" },
-  { id: "1", title: "Blood Test", date: "May 20, 2024", type: "lab" },
-  { id: "2", title: "X-Ray", date: "Feb 9, 2024", type: "lab" },
-];
-
-const prescriptions: RecordItem[] = [
-  { id: "prescription-header", title: "Prescriptions", type: "header" },
-  { id: "3", title: "Amoxicillin", date: "Apr 10, 2024", type: "prescription" },
-];
-
-const allRecords: RecordItem[] = [...labResults, ...prescriptions];
 
 const RecordCard = ({
   item,
@@ -48,9 +41,22 @@ const RecordCard = ({
   const themeColors = Colors[theme];
   const brand = Colors.brand;
 
+  const getIcon = () => {
+    switch (item.type) {
+      case "prescription":
+        return "medkit";
+      case "lab":
+        return "flask-outline";
+      case "medical":
+        return "document-text-outline";
+      default:
+        return "document-outline";
+    }
+  };
+
   const icon = (
     <Ionicons
-      name={item.type === "prescription" ? "medkit" : "flask-outline"}
+      name={getIcon() as any}
       size={24}
       color={brand.primary}
     />
@@ -96,43 +102,132 @@ const Records = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedItem, setSelectedItem] = useState<RecordItem | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const { theme } = useThemeContext();
   const themeColors = Colors[theme];
 
-  // Simulate loading for demo purposes
-  // In real app, this would be replaced with actual API calls
-  const [records, setRecords] = useState<RecordItem[]>([]);
+  // Cached queries
+  const {
+    data: medicalRecords,
+    loading: loadingMedical,
+    error: errorMedical,
+    refresh: refreshMedical,
+  } = useMedicalRecords();
+
+  const {
+    data: prescriptions,
+    loading: loadingPrescriptions,
+    error: errorPrescriptions,
+    refresh: refreshPrescriptions,
+  } = usePrescriptions();
+
+  const {
+    data: labResults,
+    loading: loadingLabResults,
+    error: errorLabResults,
+    refresh: refreshLabResults,
+  } = useLabResults();
+
+  // Helper function to format date
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  // Helper function to convert API data to RecordItem format
+  const convertToRecordItems = (medicalRecords: MedicalRecord[], prescriptions: MedicalPrescription[], labResults: MedicalLabResult[]): RecordItem[] => {
+    const items: RecordItem[] = [];
+
+    // Add medical records
+    if (medicalRecords.length > 0) {
+      items.push({ id: "medical-header", title: "Medical Records", type: "header" });
+      medicalRecords.forEach((record) => {
+        items.push({
+          id: `medical-${record.id}`,
+          title: record.diagnosis,
+          date: formatDate(record.createdAt),
+          type: "medical",
+          data: record
+        });
+      });
+    }
+
+    // Add prescriptions
+    if (prescriptions.length > 0) {
+      items.push({ id: "prescription-header", title: "Prescriptions", type: "header" });
+      prescriptions.forEach((prescription) => {
+        items.push({
+          id: `prescription-${prescription.id}`,
+          title: prescription.medication,
+          date: formatDate(prescription.createdAt),
+          type: "prescription",
+          data: prescription
+        });
+      });
+    }
+
+    // Add lab results
+    if (labResults.length > 0) {
+      items.push({ id: "lab-header", title: "Lab Results", type: "header" });
+      labResults.forEach((labResult) => {
+        items.push({
+          id: `lab-${labResult.id}`,
+          title: labResult.testName,
+          date: formatDate(labResult.resultDate),
+          type: "lab",
+          data: labResult
+        });
+      });
+    }
+
+    return items;
+  };
+
+  // Combined loading and error states
+  const isLoading = loadingMedical || loadingPrescriptions || loadingLabResults;
 
   useEffect(() => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setRecords(allRecords);
-      setIsLoading(false);
-    }, 1000);
-  }, []);
+    if (errorMedical || errorPrescriptions || errorLabResults) {
+      console.error('Error loading records:', errorMedical || errorPrescriptions || errorLabResults);
+      Alert.alert('Error', 'Failed to load medical records. Please try again.');
+    }
+  }, [errorMedical, errorPrescriptions, errorLabResults]);
 
   const onRefresh = useCallback(async () => {
     try {
       setRefreshing(true);
-      // simulate reload
-      await new Promise((r) => setTimeout(r, 600));
-      setRecords(allRecords);
+      await Promise.all([
+        refreshMedical(),
+        refreshPrescriptions(),
+        refreshLabResults(),
+      ]);
+    } catch (err: any) {
+      console.error('Error refreshing records:', err);
+      Alert.alert('Error', 'Failed to refresh records');
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [refreshMedical, refreshPrescriptions, refreshLabResults]);
+
+  const recordItems = useMemo(() => {
+    const meds = medicalRecords ?? [];
+    const prescs = prescriptions ?? [];
+    const labs = labResults ?? [];
+    return convertToRecordItems(meds, prescs, labs);
+  }, [medicalRecords, prescriptions, labResults]);
 
   const filteredRecords = useMemo(() => {
-    if (!searchQuery) return records;
-    return records.filter(
+    if (!searchQuery) return recordItems;
+    return recordItems.filter(
       (item) =>
         item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (item.date && item.date.toLowerCase().includes(searchQuery.toLowerCase()))
     );
-  }, [records, searchQuery]);
+  }, [recordItems, searchQuery]);
 
   const handleItemPress = (item: RecordItem) => {
     if (item.type === "header") return;
@@ -181,11 +276,10 @@ const Records = () => {
           color={Colors.brand.primary}
         />
       ) : filteredRecords.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={[styles.emptyText, { color: themeColors.subText }]}>
-            {searchQuery ? "No records found matching your search" : "No medical records available"}
-          </Text>
-        </View>
+        <EmptyState
+          icon="document-text-outline"
+          title={searchQuery ? "No records found matching your search" : "No medical records available"}
+        />
       ) : (
         <FlatList
           data={filteredRecords}
@@ -213,15 +307,38 @@ const Records = () => {
               <LabResultModal
                 visible={modalVisible}
                 onClose={closeModal}
-                result={selectedItem}
+                result={selectedItem.data as MedicalLabResult}
               />
-            ) : (
+            ) : selectedItem?.type === "prescription" ? (
               <PrescriptionModal
                 visible={modalVisible}
                 onClose={closeModal}
-                prescription={selectedItem}
+                prescription={selectedItem.data as MedicalPrescription}
               />
-            )}
+            ) : selectedItem?.type === "medical" ? (
+              <View style={styles.medicalRecordModal}>
+                <Text style={[styles.modalTitle, { color: themeColors.text }]}>
+                  Medical Record
+                </Text>
+                <Text style={[styles.modalText, { color: themeColors.text }]}>
+                  <Text style={styles.bold}>Diagnosis:</Text> {(selectedItem.data as MedicalRecord)?.diagnosis}
+                </Text>
+                <Text style={[styles.modalText, { color: themeColors.text }]}>
+                  <Text style={styles.bold}>Treatment:</Text> {(selectedItem.data as MedicalRecord)?.treatment}
+                </Text>
+                {(selectedItem.data as MedicalRecord)?.notes && (
+                  <Text style={[styles.modalText, { color: themeColors.text }]}>
+                    <Text style={styles.bold}>Notes:</Text> {(selectedItem.data as MedicalRecord)?.notes}
+                  </Text>
+                )}
+                <TouchableOpacity
+                  style={[styles.closeButton, { backgroundColor: Colors.brand.primary }]}
+                  onPress={closeModal}
+                >
+                  <Text style={[styles.closeButtonText, { color: 'white' }]}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
           </View>
         </View>
       </Modal>
@@ -311,6 +428,34 @@ const styles = StyleSheet.create({
     maxHeight: "80%",
     borderRadius: 16,
     padding: 20,
+  },
+  medicalRecordModal: {
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  modalText: {
+    fontSize: 16,
+    marginBottom: 12,
+    lineHeight: 24,
+  },
+  bold: {
+    fontWeight: "bold",
+  },
+  closeButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 20,
+    alignItems: "center",
+  },
+  closeButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
 

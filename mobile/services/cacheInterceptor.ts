@@ -22,14 +22,17 @@ const CACHE_INVALIDATION_RULES = {
   // Lab results
   'POST:/api/v0/lab-results': ['lab_results'],
   'PUT:/api/v0/lab-results': ['lab_results'],
+  'DELETE:/api/v0/lab-results': ['lab_results'],
   
   // Medical records
-  'POST:/api/v0/medical-records': ['medical_records'],
+  'POST:/api/v0/medical-records/patients/*/medical-records': ['medical_records'],
   'PUT:/api/v0/medical-records': ['medical_records'],
+  'DELETE:/api/v0/medical-records': ['medical_records'],
   
   // Prescriptions
   'POST:/api/v0/prescriptions': ['prescriptions'],
   'PUT:/api/v0/prescriptions': ['prescriptions'],
+  'DELETE:/api/v0/prescriptions': ['prescriptions'],
   
   // Payments
   'POST:/api/v0/payments': ['payments'],
@@ -40,11 +43,30 @@ const CACHE_INVALIDATION_RULES = {
   'PUT:/api/v0/user-feedbacks': ['reviews'],
 } as const;
 
+// Helper function to check if a path matches a pattern with wildcards
+function pathMatches(path: string, pattern: string): boolean {
+  // Convert pattern to regex, replacing * with [^/]+ (match any non-slash characters)
+  const regexPattern = pattern.replace(/\*/g, '[^/]+');
+  const regex = new RegExp(`^${regexPattern}$`);
+  return regex.test(path);
+}
+
 // Helper function to get cache invalidation patterns for an endpoint
 function getCacheInvalidationPatterns(method: string, url: string): string[] {
-  const key = `${method}:${url}`;
-  const patterns = CACHE_INVALIDATION_RULES[key as keyof typeof CACHE_INVALIDATION_RULES];
-  return patterns ? [...patterns] : [];
+  const upperMethod = method?.toUpperCase?.() || '';
+  const normalizeUrl = (u: string) => (u || '').replace(/^https?:\/\/[^/]+/, '');
+  const path = normalizeUrl(url);
+
+  const matches: string[] = [];
+  for (const ruleKey of Object.keys(CACHE_INVALIDATION_RULES)) {
+    const [ruleMethod, rulePath] = ruleKey.split(':');
+    if (ruleMethod === upperMethod && (path.startsWith(rulePath) || pathMatches(path, rulePath))) {
+      const patterns = (CACHE_INVALIDATION_RULES as any)[ruleKey] as string[];
+      matches.push(...patterns);
+    }
+  }
+
+  return matches;
 }
 
 // Cache interceptor for axios

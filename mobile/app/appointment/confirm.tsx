@@ -1,11 +1,12 @@
 import { createAppointment as createAppointmentAction } from "@/redux/appointmentsSlice";
 import { useAppDispatch } from "@/redux/store";
-import { createPaymentRecord } from "@/services/authService";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { paymentVerificationService } from "@/services/paymentVerificationService";
+import paystackService from "@/services/paystackService";
+import paystackConfig from "@/config/paystack";
 import { usePaystack } from "react-native-paystack-webview";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -15,6 +16,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Alert,
 } from "react-native";
 
 import StepHeader from "@/components/step-header-component";
@@ -33,9 +35,15 @@ const ConfirmScreen = () => {
   const [reason, setReason] = useState("");
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [mobileNumber, setMobileNumber] = useState("");
 
   const { initials, name, specialty, date, time, consultationType, fee, doctorId } =
     useLocalSearchParams();
+
+  // Initialize Paystack service with configuration
+  useEffect(() => {
+    paystackService.setPublicKey(paystackConfig.publicKey);
+  }, []);
 
   const consultationFee = Number(fee) || 0;
   const platformFee = 10.0;
@@ -64,44 +72,71 @@ const ConfirmScreen = () => {
 
   const handleConfirm = async () => {
     if (!selectedMethod) {
-      alert(t("confirm.choosePaymentMethod"));
+      Alert.alert(t("confirm.error"), t("confirm.choosePaymentMethod"));
       return;
     }
+
+    // Validate mobile number for mobile money payments
+    if ((selectedMethod === "MTN MoMo" || selectedMethod === "Telecel Cash") && !mobileNumber.trim()) {
+      Alert.alert(t("confirm.error"), t("confirm.enterMobileNumber"));
+      return;
+    }
+
+    // Validate amount
+    if (!paystackService.validateAmount(total)) {
+      Alert.alert(t("confirm.error"), t("confirm.invalidAmount"));
+      return;
+    }
+
     const hhmm = to24Hour(time as string);
     const isoDate = new Date(`${date}T${hhmm}:00`).toISOString();
 
     // Card flow: trigger Paystack popup first; on success, create appointment + payment
     if (selectedMethod === "Credit/Debit Card") {
       try {
-        const raw = await AsyncStorage.getItem("authUser");
-        const me = raw ? JSON.parse(raw) : null;
-        const email = me?.email as string | undefined;
-        const userId = me?.userId as string | undefined;
-        if (!email || !userId) {
-          alert(t("auth.missingEmail"));
+        setIsProcessing(true);
+
+        // Prepare payment data using the service
+        const paymentData = await paystackService.preparePaymentData(
+          total,
+          paystackService.createAppointmentMetadata(
+            String(doctorId || ""),
+            isoDate,
+            consultationType === "In-Person" ? "In-person" : "Online",
+            { doctorName: name, specialty }
+          )
+        );
+
+        if (!paymentData) {
+          Alert.alert(t("auth.error"), t("auth.missingEmail"));
           return;
         }
 
-        const amountMinor = Math.round(total * 100); // Paystack expects smallest currency unit
-        const reference = `MC_${Date.now()}`;
-        setIsProcessing(true);
+        const userId = await paystackService.getUserId();
+        if (!userId) {
+          Alert.alert(t("auth.error"), t("auth.missingUserId"));
+          return;
+        }
+
+        // Log payment attempt
+        paystackService.logPaymentAttempt(paymentData, 'appointment');
 
         popup.checkout({
-          email,
-          amount: amountMinor,
-          reference,
-          metadata: {
-            custom_fields: [
-              { display_name: "Doctor", variable_name: "doctor_id", value: String(doctorId || "") },
-              { display_name: "AppointmentDate", variable_name: "appointment_date", value: isoDate },
-            ],
-          },
-          onSuccess: async ({ transactionRef }: any) => {
+          email: paymentData.email,
+          amount: paymentData.amount,
+          reference: paymentData.reference,
+          metadata: paymentData.metadata,
+          onSuccess: async (transactionRef: any) => {
             try {
-              // Extract provider reference string from Paystack response
-              const providerRef = String(
-                transactionRef?.reference || transactionRef?.trxref || transactionRef?.transaction || reference
-              );
+              // Extract provider reference using service method
+              const providerRef = paystackService.extractTransactionReference(transactionRef);
+
+              // Log successful payment
+              paystackService.logPaymentResult({
+                reference: paymentData.reference,
+                status: 'success',
+                transaction: transactionRef,
+              });
 
               const created = await dispatch(
                 createAppointmentAction({
@@ -119,43 +154,66 @@ const ConfirmScreen = () => {
                 throw new Error("Payment captured but appointment creation failed. Please contact support with ref: " + providerRef);
               }
 
-              await createPaymentRecord({
+              const paymentRecord = await paymentVerificationService.createPaymentRecord({
                 appointmentId,
                 userId,
                 amount: total,
                 method: "Credit Card",
                 providerRef,
-                metadata: { paystack: transactionRef, reference },
+                metadata: { paystack: transactionRef, reference: paymentData.reference },
               });
+
+              // Update payment status to completed after successful Paystack transaction
+              if (paymentRecord?.id) {
+                await paymentVerificationService.updatePaymentStatus(paymentRecord.id, 'completed');
+              }
 
               router.replace("/appointment/success");
             } catch (err: any) {
-              const msg = err?.response?.data?.error || err?.message || t("confirm.bookingFailed");
-              alert(msg);
+              const msg = paystackService.formatErrorMessage(err);
+              Alert.alert(t("confirm.error"), msg);
             } finally {
               setIsProcessing(false);
             }
           },
           onCancel: () => {
             setIsProcessing(false);
-            alert(t("payments.cancelled"));
+            paystackService.logPaymentResult({
+              reference: paymentData.reference,
+              status: 'cancelled',
+              message: 'User cancelled payment',
+            });
+            Alert.alert(t("payments.cancelled"), t("payments.cancelledMessage"));
           },
           onError: (err: any) => {
             setIsProcessing(false);
-            const msg = err?.message || t("payments.failed");
-            alert(msg);
+            const msg = paystackService.formatErrorMessage(err);
+            paystackService.logPaymentResult({
+              reference: paymentData.reference,
+              status: 'failed',
+              message: msg,
+            });
+            Alert.alert(t("payments.failed"), msg);
           },
         });
       } catch (e: any) {
         setIsProcessing(false);
-        const message = typeof e === "string" ? e : (e?.response?.data?.error || e?.message || t("payments.failed"));
-        alert(message);
+        const message = paystackService.formatErrorMessage(e);
+        Alert.alert(t("payments.failed"), message);
       }
       return;
     }
 
     // Non-card flows proceed to create appointment directly
     try {
+      setIsProcessing(true);
+      
+      const userId = await paystackService.getUserId();
+      if (!userId) {
+        Alert.alert(t("auth.error"), t("auth.missingUserId"));
+        return;
+      }
+
       const created = await dispatch(
         createAppointmentAction({
           doctorId: (doctorId as string) || "",
@@ -166,10 +224,37 @@ const ConfirmScreen = () => {
           paymentMethod: selectedMethod as any,
         })
       ).unwrap();
+
+      const appointmentId = created?.appointmentId as string | undefined;
+      if (!appointmentId) {
+        throw new Error("Appointment creation failed");
+      }
+
+      // Create payment record for mobile money payments
+      const paymentReference = `MM_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const paymentRecord = await paymentVerificationService.createPaymentRecord({
+        appointmentId,
+        userId,
+        amount: total,
+        method: selectedMethod as any,
+        providerRef: paymentReference,
+        metadata: { 
+          mobileNumber: selectedMethod === "MTN MoMo" || selectedMethod === "Telecel Cash" ? mobileNumber : undefined,
+          appointmentDetails: { doctorName: name, specialty, date, time }
+        },
+      });
+
+      // Update payment status to completed for mobile money (assuming immediate success)
+      if (paymentRecord?.id) {
+        await paymentVerificationService.updatePaymentStatus(paymentRecord.id, 'completed');
+      }
+
       if (created) router.replace("/appointment/success");
     } catch (e: any) {
-      const message = typeof e === "string" ? e : (e?.response?.data?.error || e?.message || t("confirm.bookingFailed"));
-      alert(message);
+      const message = paystackService.formatErrorMessage(e);
+      Alert.alert(t("confirm.error"), message);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -350,10 +435,12 @@ const ConfirmScreen = () => {
             <TextInput
               placeholder={t("confirm.enterMobileNumber")}
               keyboardType="phone-pad"
+              value={mobileNumber}
+              onChangeText={setMobileNumber}
               style={[
                 styles.input,
                 {
-                  color: themeColors.placeholder,
+                  color: themeColors.text,
                   backgroundColor: themeColors.card,
                   borderColor: themeColors.border,
                 },

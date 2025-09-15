@@ -9,11 +9,13 @@ import {
   onSnapshot,
   orderBy,
   query,
+  limit,
   serverTimestamp,
   setDoc,
   Timestamp,
   Unsubscribe,
   updateDoc,
+  deleteField,
   where,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
@@ -78,10 +80,13 @@ export const ensureChatRoom = async (
 
 export const subscribeToMessages = (
   roomId: string,
-  onChange: (msgs: FireMessage[]) => void
+  onChange: (msgs: FireMessage[]) => void,
+  opts?: { limit?: number }
 ): Unsubscribe => {
   const msgsRef = collection(db, "chatRooms", roomId, "messages");
-  const q = query(msgsRef, orderBy("createdAt", "asc"));
+  const base = query(msgsRef, orderBy("createdAt", "asc"));
+  // When limiting, fetch the most recent N by ordering desc
+  const q = opts?.limit ? query(msgsRef, orderBy("createdAt", "desc"), limit(opts.limit)) : base;
   return onSnapshot(q, (snap) => {
     const messages: FireMessage[] = [];
     snap.forEach((d) => {
@@ -102,7 +107,9 @@ export const subscribeToMessages = (
         createdAt: data.createdAt ?? null,
       });
     });
-    onChange(messages);
+    // If we queried in descending order due to a limit, reverse back to chronological for UI
+    const output = opts?.limit ? messages.reverse() : messages;
+    onChange(output);
   });
 };
 
@@ -300,4 +307,36 @@ export const getChatRoomMeta = async (
   if (!snap.exists()) return { createdAt: null };
   const data = snap.data() as any;
   return { createdAt: data.createdAt ?? null };
+};
+
+// Subscribe to room document (for typing indicators, lastMessage, etc.)
+export const subscribeToRoom = (
+  roomId: string,
+  onChange: (room: { typingBy?: Record<string, Timestamp | null>; lastMessage?: string | null; createdAt?: Timestamp | null; updatedAt?: Timestamp | null } | null) => void
+): Unsubscribe => {
+  const roomRef = doc(db, "chatRooms", roomId);
+  return onSnapshot(roomRef, (snap) => {
+    if (!snap.exists()) {
+      onChange(null);
+      return;
+    }
+    const data = snap.data() as any;
+    onChange({
+      typingBy: data.typingBy || undefined,
+      lastMessage: data.lastMessage ?? null,
+      createdAt: data.createdAt ?? null,
+      updatedAt: data.updatedAt ?? null,
+    });
+  });
+};
+
+// Set or clear typing using a per-user timestamp map under chatRooms/{roomId}/typingBy
+export const setTyping = async (
+  roomId: string,
+  userId: string,
+  typing: boolean
+): Promise<void> => {
+  const roomRef = doc(db, "chatRooms", roomId);
+  const path = `typingBy.${userId}` as any;
+  await updateDoc(roomRef, typing ? { [path]: serverTimestamp(), updatedAt: serverTimestamp() } : { [path]: deleteField(), updatedAt: serverTimestamp() });
 };

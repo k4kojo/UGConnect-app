@@ -2,8 +2,8 @@ import Avatar from "@/components/avatar.component";
 import DoctorListSkeleton from "@/components/skeleton/DoctorListSkeleton";
 import StepHeader from "@/components/step-header-component";
 import Colors from "@/constants/colors";
-import { useLanguage } from "@/context/LanguageContext";
 import { useThemeContext } from "@/context/ThemeContext";
+import { useLanguage } from "@/context/LanguageContext";
 import { fetchDoctors } from "@/redux/doctorsSlice";
 import { useAppDispatch, useAppSelector } from "@/redux/store";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,6 +18,7 @@ import {
 	TouchableOpacity,
 	View,
 } from "react-native";
+import EmptyState from "@/components/EmptyState";
 
 type DoctorItem = {
 	id: number;
@@ -108,11 +109,10 @@ const ScheduleAppointment = () => {
 			{isLoading ? (
 				<DoctorListSkeleton />
 			) : filteredDoctors.length === 0 ? (
-				<View style={styles.emptyContainer}>
-					<Text style={[styles.emptyText, { color: themeColors.subText }]}>
-						{searchQuery ? t("schedule.emptySearch") : t("schedule.emptyAll")}
-					</Text>
-				</View>
+				<EmptyState
+					icon="person-outline"
+					title={searchQuery ? t("schedule.emptySearch") : t("schedule.emptyAll")}
+				/>
 			) : (
 				<FlatList
 					data={filteredDoctors}

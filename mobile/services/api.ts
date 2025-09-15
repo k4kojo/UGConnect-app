@@ -3,7 +3,7 @@ import axios from "axios";
 import { createCacheInterceptor } from "./cacheInterceptor";
 
 // TIP: Update this IP to your machine's LAN IP when testing on device
-const API_BASE_URL = "http://172.20.10.2:5500";
+const API_BASE_URL = "http://192.168.8.125:5500";
 
 const api = axios.create({
   baseURL: API_BASE_URL,

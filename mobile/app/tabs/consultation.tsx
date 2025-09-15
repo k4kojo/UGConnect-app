@@ -7,6 +7,8 @@ import Tabs from "@/components/consultation/tabs.component";
 import TopHeader from "@/components/top-header.component";
 import Colors from "@/constants/colors";
 import { useThemeContext } from "@/context/ThemeContext";
+import { useLanguage } from "@/context/LanguageContext";
+import EmptyState from "@/components/EmptyState";
 import { fetchAppointments } from "@/redux/appointmentsSlice";
 import { fetchDoctors } from "@/redux/doctorsSlice";
 import { useAppDispatch, useAppSelector } from "@/redux/store";
@@ -145,11 +147,10 @@ const Consultation = () => {
             )}
           />
         ) : (
-          <View style={{ alignItems: "center", paddingVertical: 40 }}>
-            <Text style={{ color: themeColors.subText, fontSize: 14 }}>
-              No consultation history found
-            </Text>
-          </View>
+          <EmptyState
+            icon="medical-outline"
+            title="No consultation history found"
+          />
         )}
       </View>
       <Modal

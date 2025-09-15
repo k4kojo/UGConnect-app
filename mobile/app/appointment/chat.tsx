@@ -37,6 +37,8 @@ import {
   sendImageMessage,
   sendTextMessage,
   subscribeToMessages,
+  subscribeToRoom,
+  setTyping,
   updateTextMessage,
 } from "@/firebase/chatService";
 import { ensureFirebaseAuth } from "@/services/authService";
@@ -69,13 +71,13 @@ const ChatScreen = () => {
   const unsubRef = useRef<ReturnType<typeof subscribeToMessages> | null>(null);
 
   const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
+  const [peerTyping, setPeerTyping] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [currentPlayingId, setCurrentPlayingId] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
-  
+
   // Audio hooks
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const audioPlayer = useAudioPlayer();
@@ -84,6 +86,8 @@ const ChatScreen = () => {
   const [gestureLocked, setGestureLocked] = useState(false);
   const [gestureCancelling, setGestureCancelling] = useState(false);
   const recordTimerRef = useRef<number | null>(null);
+  const typingTimerRef = useRef<number | null>(null);
+  const roomUnsubRef = useRef<ReturnType<typeof subscribeToRoom> | null>(null);
   const [playbackPos, setPlaybackPos] = useState(0);
   const [playbackDur, setPlaybackDur] = useState(0);
   const [attachSheetVisible, setAttachSheetVisible] = useState(false);
@@ -180,6 +184,22 @@ const ChatScreen = () => {
             }));
             return mapped;
           });
+        }, { limit: 200 });
+        // Subscribe to room (typing indicators, metadata)
+        roomUnsubRef.current?.();
+        roomUnsubRef.current = subscribeToRoom(rid, (room) => {
+          try {
+            const map = room?.typingBy || {};
+            const now = Date.now();
+            const someoneTyping = Object.entries(map).some(([uid, ts]: any) => {
+              if (!ts || !ts.toMillis) return false;
+              if (String(uid) === String(myUserId || "")) return false;
+              return now - ts.toMillis() < 4000; // consider typing active if updated within last 4s
+            });
+            setPeerTyping(someoneTyping);
+          } catch (e) {
+            // ignore
+          }
         });
       } catch (e) {
         console.error("Chat init error", e);
@@ -189,6 +209,7 @@ const ChatScreen = () => {
     return () => {
       mounted = false;
       unsubRef.current?.();
+      roomUnsubRef.current?.();
     };
   }, [doctorId]);
 
@@ -495,6 +516,19 @@ const ChatScreen = () => {
     };
   }, []);
 
+  // Ensure typing flag is cleared when leaving the room or unmounting
+  useEffect(() => {
+    return () => {
+      if (typingTimerRef.current) {
+        clearTimeout(typingTimerRef.current as any);
+        typingTimerRef.current = null;
+      }
+      if (roomId && myUserId) {
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        setTyping(roomId, myUserId, false);
+      }
+    };
+  }, [roomId, myUserId]);
 
   return (
     <View
@@ -515,7 +549,7 @@ const ChatScreen = () => {
         />
         <View style={{ flexDirection: "column" }}>
           <Text style={styles.doctorName}>{doctorName}</Text>
-          {isTyping && (
+          {peerTyping && (
             <Text
               style={{ fontStyle: "italic", marginBottom: 5, color: "#fff" }}
             >
@@ -709,8 +743,18 @@ const ChatScreen = () => {
                 placeholderTextColor={themeColors.placeholder}
                 onChangeText={(text) => {
                   setInput(text);
-                  setIsTyping(true);
-                  setTimeout(() => setIsTyping(false), 1000);
+                  if (roomId && myUserId) {
+                    // Fire-and-forget typing signal with debounce
+                    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+                    setTyping(roomId, myUserId, true);
+                    if (typingTimerRef.current) {
+                      clearTimeout(typingTimerRef.current as any);
+                    }
+                    typingTimerRef.current = (setTimeout(() => {
+                      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+                      setTyping(roomId, myUserId, false);
+                    }, 2500) as any) as number;
+                  }
                 }}
               />
               {input.length > 0 ? (

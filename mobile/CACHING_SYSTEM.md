@@ -157,6 +157,10 @@ export const CACHE_TTL = {
 - `useNotifications()` - Cached notifications with auto-refresh
 - `useChatRooms()` - Cached chat rooms with auto-refresh
 - `useChatMessages(roomId)` - Cached chat messages with auto-refresh
+// Records
+- `useMedicalRecords()` - Cached medical records for the current patient
+- `usePrescriptions()` - Cached prescriptions for the current patient
+- `useLabResults()` - Cached lab results for the current patient
 
 ### Generic Hook
 ```typescript
@@ -182,6 +186,16 @@ const CACHE_INVALIDATION_RULES = {
   'POST:/api/v0/chat-messages': ['chat'],
   'PUT:/api/v0/user': ['user_profile', 'patient_profile'],
   // ... more rules
+  // Records
+  'POST:/api/v0/medical-records': ['medical_records'],
+  'PUT:/api/v0/medical-records': ['medical_records'],
+  'DELETE:/api/v0/medical-records': ['medical_records'],
+  'POST:/api/v0/prescriptions': ['prescriptions'],
+  'PUT:/api/v0/prescriptions': ['prescriptions'],
+  'DELETE:/api/v0/prescriptions': ['prescriptions'],
+  'POST:/api/v0/lab-results': ['lab_results'],
+  'PUT:/api/v0/lab-results': ['lab_results'],
+  'DELETE:/api/v0/lab-results': ['lab_results'],
 };
 ```
 

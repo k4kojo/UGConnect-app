@@ -4,7 +4,7 @@ import PhotoSheet from "@/components/modals/photoSheet";
 import SettingItem from "@/components/settings-item";
 import Colors from "@/constants/colors";
 import { useThemeContext } from "@/context/ThemeContext";
-import { getStoredUser, updateCurrentUser } from "@/services/authService";
+import { userService } from "@/services/userService";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -41,7 +41,7 @@ export default function ProfileScreen() {
     const fetchProfile = async () => {
       setIsLoading(true);
       try {
-        const user = await getStoredUser();
+        const user = await userService.getStoredUser();
         if (user) {
           setProfile({
             firstName: user.firstName,
@@ -79,7 +79,7 @@ export default function ProfileScreen() {
         setLocalImageUrl(result.assets[0].uri);
         const uploadedUrl = result.assets[0].uri;
 
-      await updateCurrentUser({ profilePicture: uploadedUrl });
+      await userService.updateCurrentUser({ profilePicture: uploadedUrl });
       setProfile((p) => (p ? { ...p, profilePicture: uploadedUrl } : p));
       }
     } finally {
@@ -100,7 +100,7 @@ export default function ProfileScreen() {
         setLocalImageUrl(result.assets[0].uri);
         const uploadedUrl = result.assets[0].uri;
 
-      await updateCurrentUser({ profilePicture: uploadedUrl });
+      await userService.updateCurrentUser({ profilePicture: uploadedUrl });
       setProfile((p) => (p ? { ...p, profilePicture: uploadedUrl } : p));
       }
     } finally {
@@ -113,7 +113,7 @@ export default function ProfileScreen() {
   const onRefresh = React.useCallback(async () => {
     try {
       setRefreshing(true);
-      const user = await getStoredUser();
+      const user = await userService.getStoredUser();
       if (user) {
         setProfile({
           firstName: user.firstName,
@@ -205,6 +205,12 @@ export default function ProfileScreen() {
           label="Insurance"
           caption="Manage insurance details"
           onPress={() => router.push("/profile/insurance")}
+        />
+        <SettingItem
+          icon="card"
+          label="Payment History"
+          caption="View transaction history and receipts"
+          onPress={() => router.push("/profile/payment-history")}
         />
       </View>
 

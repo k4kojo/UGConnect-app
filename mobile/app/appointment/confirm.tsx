@@ -1,0 +1,655 @@
+import { createAppointment as createAppointmentAction } from "@/redux/appointmentsSlice";
+import { useAppDispatch } from "@/redux/store";
+import { paymentVerificationService } from "@/services/paymentVerificationService";
+import paystackService from "@/services/paystackService";
+import paystackConfig from "@/config/paystack";
+import { usePaystack } from "react-native-paystack-webview";
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useState, useEffect } from "react";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  Alert,
+} from "react-native";
+
+import StepHeader from "@/components/step-header-component";
+import Colors from "@/constants/colors";
+import { useThemeContext } from "@/context/ThemeContext";
+import { useLanguage } from "@/context/LanguageContext";
+
+const ConfirmScreen = () => {
+  const { theme } = useThemeContext();
+  const themeColors = Colors[theme];
+  const { t } = useLanguage();
+
+  const router = useRouter();
+  const dispatch = useAppDispatch();
+  const { popup } = usePaystack();
+  const [reason, setReason] = useState("");
+  const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [mobileNumber, setMobileNumber] = useState("");
+
+  const { initials, name, specialty, date, time, consultationType, fee, doctorId } =
+    useLocalSearchParams();
+
+  // Initialize Paystack service with configuration
+  useEffect(() => {
+    paystackService.setPublicKey(paystackConfig.publicKey);
+  }, []);
+
+  const consultationFee = Number(fee) || 0;
+  const platformFee = 10.0;
+  const total = consultationFee + platformFee;
+
+  console.log(typeof fee);
+
+  const to24Hour = (t: string): string => {
+    if (!t) return "09:00";
+    const trimmed = t.trim();
+    // Handle formats like "9:00 AM" / "10:30 PM"
+    const ampmMatch = trimmed.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (ampmMatch) {
+      let hours = parseInt(ampmMatch[1], 10);
+      const minutes = ampmMatch[2];
+      const period = ampmMatch[3].toUpperCase();
+      if (period === "PM" && hours < 12) hours += 12;
+      if (period === "AM" && hours === 12) hours = 0;
+      return `${String(hours).padStart(2, "0")}:${minutes}`;
+    }
+    // Fallback for already 24h like "09:00"
+    const simple = trimmed.match(/^(\d{2}):(\d{2})$/);
+    if (simple) return trimmed;
+    return "09:00";
+  };
+
+  const handleConfirm = async () => {
+    if (!selectedMethod) {
+      Alert.alert(t("confirm.error"), t("confirm.choosePaymentMethod"));
+      return;
+    }
+
+    // Validate mobile number for mobile money payments
+    if ((selectedMethod === "MTN MoMo" || selectedMethod === "Telecel Cash") && !mobileNumber.trim()) {
+      Alert.alert(t("confirm.error"), t("confirm.enterMobileNumber"));
+      return;
+    }
+
+    // Validate amount
+    if (!paystackService.validateAmount(total)) {
+      Alert.alert(t("confirm.error"), t("confirm.invalidAmount"));
+      return;
+    }
+
+    const hhmm = to24Hour(time as string);
+    const isoDate = new Date(`${date}T${hhmm}:00`).toISOString();
+
+    // Card flow: trigger Paystack popup first; on success, create appointment + payment
+    if (selectedMethod === "Credit/Debit Card") {
+      try {
+        setIsProcessing(true);
+
+        // Prepare payment data using the service
+        const paymentData = await paystackService.preparePaymentData(
+          total,
+          paystackService.createAppointmentMetadata(
+            String(doctorId || ""),
+            isoDate,
+            consultationType === "In-Person" ? "In-person" : "Online",
+            { doctorName: name, specialty }
+          )
+        );
+
+        if (!paymentData) {
+          Alert.alert(t("auth.error"), t("auth.missingEmail"));
+          return;
+        }
+
+        const userId = await paystackService.getUserId();
+        if (!userId) {
+          Alert.alert(t("auth.error"), t("auth.missingUserId"));
+          return;
+        }
+
+        // Log payment attempt
+        paystackService.logPaymentAttempt(paymentData, 'appointment');
+
+        popup.checkout({
+          email: paymentData.email,
+          amount: paymentData.amount,
+          reference: paymentData.reference,
+          metadata: paymentData.metadata,
+          onSuccess: async (transactionRef: any) => {
+            try {
+              // Extract provider reference using service method
+              const providerRef = paystackService.extractTransactionReference(transactionRef);
+
+              // Log successful payment
+              paystackService.logPaymentResult({
+                reference: paymentData.reference,
+                status: 'success',
+                transaction: transactionRef,
+              });
+
+              const created = await dispatch(
+                createAppointmentAction({
+                  doctorId: (doctorId as string) || "",
+                  appointmentDate: isoDate,
+                  appointmentAmount: String(total),
+                  appointmentMode: consultationType === "In-Person" ? "In-person" : "Online",
+                  reasonForVisit: reason || undefined,
+                  paymentMethod: "Credit Card",
+                })
+              ).unwrap();
+
+              const appointmentId = created?.appointmentId as string | undefined;
+              if (!appointmentId) {
+                throw new Error("Payment captured but appointment creation failed. Please contact support with ref: " + providerRef);
+              }
+
+              const paymentRecord = await paymentVerificationService.createPaymentRecord({
+                appointmentId,
+                userId,
+                amount: total,
+                method: "Credit Card",
+                providerRef,
+                metadata: { paystack: transactionRef, reference: paymentData.reference },
+              });
+
+              // Update payment status to completed after successful Paystack transaction
+              if (paymentRecord?.id) {
+                await paymentVerificationService.updatePaymentStatus(paymentRecord.id, 'completed');
+              }
+
+              router.replace("/appointment/success");
+            } catch (err: any) {
+              const msg = paystackService.formatErrorMessage(err);
+              Alert.alert(t("confirm.error"), msg);
+            } finally {
+              setIsProcessing(false);
+            }
+          },
+          onCancel: () => {
+            setIsProcessing(false);
+            paystackService.logPaymentResult({
+              reference: paymentData.reference,
+              status: 'cancelled',
+              message: 'User cancelled payment',
+            });
+            Alert.alert(t("payments.cancelled"), t("payments.cancelledMessage"));
+          },
+          onError: (err: any) => {
+            setIsProcessing(false);
+            const msg = paystackService.formatErrorMessage(err);
+            paystackService.logPaymentResult({
+              reference: paymentData.reference,
+              status: 'failed',
+              message: msg,
+            });
+            Alert.alert(t("payments.failed"), msg);
+          },
+        });
+      } catch (e: any) {
+        setIsProcessing(false);
+        const message = paystackService.formatErrorMessage(e);
+        Alert.alert(t("payments.failed"), message);
+      }
+      return;
+    }
+
+    // Non-card flows proceed to create appointment directly
+    try {
+      setIsProcessing(true);
+      
+      const userId = await paystackService.getUserId();
+      if (!userId) {
+        Alert.alert(t("auth.error"), t("auth.missingUserId"));
+        return;
+      }
+
+      const created = await dispatch(
+        createAppointmentAction({
+          doctorId: (doctorId as string) || "",
+          appointmentDate: isoDate,
+          appointmentAmount: String(total),
+          appointmentMode: consultationType === "In-Person" ? "In-person" : "Online",
+          reasonForVisit: reason || undefined,
+          paymentMethod: selectedMethod as any,
+        })
+      ).unwrap();
+
+      const appointmentId = created?.appointmentId as string | undefined;
+      if (!appointmentId) {
+        throw new Error("Appointment creation failed");
+      }
+
+      // Create payment record for mobile money payments
+      const paymentReference = `MM_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const paymentRecord = await paymentVerificationService.createPaymentRecord({
+        appointmentId,
+        userId,
+        amount: total,
+        method: selectedMethod as any,
+        providerRef: paymentReference,
+        metadata: { 
+          mobileNumber: selectedMethod === "MTN MoMo" || selectedMethod === "Telecel Cash" ? mobileNumber : undefined,
+          appointmentDetails: { doctorName: name, specialty, date, time }
+        },
+      });
+
+      // Update payment status to completed for mobile money (assuming immediate success)
+      if (paymentRecord?.id) {
+        await paymentVerificationService.updatePaymentStatus(paymentRecord.id, 'completed');
+      }
+
+      if (created) router.replace("/appointment/success");
+    } catch (e: any) {
+      const message = paystackService.formatErrorMessage(e);
+      Alert.alert(t("confirm.error"), message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{flex: 1}}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: themeColors.background }]}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Header */}
+      <TouchableOpacity
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          marginBottom: 20,
+        }}
+        onPress={() => router.back()}
+      >
+        <Ionicons name="chevron-back" size={22} color={themeColors.text} />
+        <Text style={{ fontSize: 18, color: themeColors.text }}>{t("common.back")}</Text>
+      </TouchableOpacity>
+
+      <StepHeader step={3} />
+
+      {/* Row layout */}
+      <View style={styles.rowWrap}>
+        {/* Appointment Details */}
+        <View style={[styles.card, { backgroundColor: themeColors.subCard }]}>
+          <Text style={[styles.cardHeading, { color: themeColors.text }]}>
+            {t("confirm.appointmentDetails")}
+          </Text>
+          <View style={styles.docRow}>
+            <View
+              style={[styles.avatar, { backgroundColor: themeColors.avatar }]}
+            >
+              <Text style={[styles.avatarText, { color: themeColors.text }]}>
+                {initials?.toString() ?? "Dr"}
+              </Text>
+            </View>
+            <View>
+              <Text style={[styles.docName, { color: themeColors.text }]}>
+                {name ?? "Doctor Name"}
+              </Text>
+              <Text style={[styles.grayText, { color: themeColors.subText }]}>
+                {specialty ?? "Specialty"}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.iconRow}>
+            <Ionicons
+              name="calendar-outline"
+              size={16}
+              color={themeColors.text}
+            />
+            <Text style={[styles.rowText, { color: themeColors.subText }]}>
+              {date ? new Date(date.toString()).toDateString() : "Date"}
+            </Text>
+          </View>
+          <View style={styles.iconRow}>
+            <Ionicons name="time-outline" size={16} color={themeColors.text} />
+            <Text style={[styles.rowText, { color: themeColors.subText }]}>
+              {time ?? "Time"}
+            </Text>
+          </View>
+          <View style={styles.iconRow}>
+            <Ionicons
+              name="person-outline"
+              size={16}
+              color={themeColors.text}
+            />
+            <Text style={[styles.rowText, { color: themeColors.subText }]}>
+              {consultationType === "In-Person"
+                ? t("confirm.inPersonVisit")
+                : t("appointments.videoCall")}
+            </Text>
+          </View>
+        </View>
+
+        {/* Payment Summary */}
+        <View style={[styles.card, { backgroundColor: themeColors.subCard }]}>
+          <Text style={[styles.cardHeading, { color: themeColors.text }]}>
+            {t("confirm.paymentSummary")}
+          </Text>
+          <View style={styles.rowBetween}>
+            <Text style={[styles.grayText, { color: themeColors.subText }]}>
+              {t("schedule.consultationFee")}
+            </Text>
+            <Text style={[styles.feeText, { color: themeColors.text }]}>
+              ₵{consultationFee}
+            </Text>
+          </View>
+          <View style={styles.rowBetween}>
+            <Text style={[styles.grayText, { color: themeColors.subText }]}>
+              {t("confirm.platformFee")}
+            </Text>
+            <Text style={[styles.feeText, { color: themeColors.text }]}>
+              ₵{platformFee}
+            </Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.rowBetween}>
+            <Text style={[styles.totalText, { color: themeColors.text }]}>
+              {t("confirm.total")}
+            </Text>
+            <Text style={[styles.totalText, { color: themeColors.text }]}>
+              ₵{total}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Reason for Visit */}
+      <View style={[styles.card, { backgroundColor: themeColors.subCard }]}>
+        <Text style={[styles.cardHeading, { color: themeColors.text }]}>
+          {t("confirm.reasonForVisit")}
+        </Text>
+        <TextInput
+          placeholder={t("confirm.reasonPlaceholder")}
+          multiline
+          style={[styles.textArea, { color: themeColors.subText }]}
+          value={reason}
+          onChangeText={setReason}
+        />
+      </View>
+
+      {/* Payment Methods */}
+      <View style={[styles.card, { backgroundColor: themeColors.background }]}>
+        <Text style={[styles.cardHeading, { color: themeColors.text }]}>
+          {t("confirm.paymentMethod")}
+        </Text>
+        <View style={styles.payOptions}>
+          {["MTN MoMo", "Telecel Cash", "Credit/Debit Card"].map((method) => (
+            <TouchableOpacity
+              key={method}
+              style={[
+                styles.paymentBtn,
+                {
+                  backgroundColor: themeColors.card,
+                  borderColor: themeColors.border,
+                },
+                selectedMethod === method && {
+                  backgroundColor: Colors.brand.primary,
+                  borderColor: "none",
+                },
+              ]}
+              onPress={() => setSelectedMethod(method)}
+            >
+              <Ionicons
+                name={
+                  method === "Credit/Debit Card"
+                    ? "card-outline"
+                    : "phone-portrait-outline"
+                }
+                size={18}
+                color={selectedMethod === method ? "#fff" : themeColors.text}
+              />
+              <Text
+                style={[
+                  styles.paymentBtnText,
+                  selectedMethod === method
+                    ? { color: "#fff" }
+                    : { color: themeColors.text },
+                ]}
+              >
+                {method}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Payment Fields */}
+        {selectedMethod === "MTN MoMo" || selectedMethod === "Telecel Cash" ? (
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: themeColors.text }]}>
+              {t("confirm.mobileMoneyNumber")}
+            </Text>
+            <TextInput
+              placeholder={t("confirm.enterMobileNumber")}
+              keyboardType="phone-pad"
+              value={mobileNumber}
+              onChangeText={setMobileNumber}
+              style={[
+                styles.input,
+                {
+                  color: themeColors.text,
+                  backgroundColor: themeColors.card,
+                  borderColor: themeColors.border,
+                },
+              ]}
+            />
+          </View>
+        ) : null}
+
+        {selectedMethod === "Credit/Debit Card" && (
+          <View>
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: themeColors.text }]}>
+                {t("confirm.cardNumber")}
+              </Text>
+              <TextInput
+                placeholder="1234 5678 9012 3456"
+                keyboardType="numeric"
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: themeColors.card,
+                    color: themeColors.placeholder,
+                    borderColor: themeColors.border,
+                  },
+                ]}
+              />
+            </View>
+            <View style={styles.cardDetailsRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.inputLabel, { color: themeColors.text }]}>
+                  {t("confirm.expiry")}
+                </Text>
+                <TextInput
+                  placeholder="MM/YY"
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: themeColors.card,
+                      color: themeColors.placeholder,
+                      borderColor: themeColors.border,
+                    },
+                  ]}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.inputLabel, { color: themeColors.text }]}>
+                  {t("confirm.cvv")}
+                </Text>
+                <TextInput
+                  placeholder="123"
+                  keyboardType="numeric"
+                  secureTextEntry
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: themeColors.card,
+                      color: themeColors.placeholder,
+                      borderColor: themeColors.border,
+                    },
+                  ]}
+                />
+              </View>
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* Confirm Button */}
+      <TouchableOpacity
+        style={[styles.submitBtn, { backgroundColor: Colors.brand.primary, opacity: isProcessing ? 0.7 : 1 }]}
+        onPress={handleConfirm}
+        disabled={isProcessing}
+      >
+        <Text style={[styles.submitText, {color: themeColors.text}]}>
+          {isProcessing ? t("common.processing") : t("confirm.confirmAndPay", { amount: total })}
+        </Text>
+      </TouchableOpacity>
+    </ScrollView>
+      </KeyboardAvoidingView>
+  );
+};
+
+export default ConfirmScreen;
+
+// STYLES
+const styles = StyleSheet.create({
+  container: {
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    flex: 1,
+  },
+  rowWrap: {
+    gap: 20,
+    marginBottom: 20,
+  },
+  card: {
+    borderRadius: 10,
+    padding: 16,
+    marginBottom: 20,
+  },
+  cardHeading: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 10,
+  },
+  docRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 10,
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    fontWeight: "600",
+  },
+  docName: {
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  grayText: {
+    fontSize: 13,
+  },
+  iconRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginVertical: 3,
+  },
+  rowText: {
+    fontSize: 14,
+  },
+  rowBetween: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 5,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#e5e7eb",
+    marginVertical: 8,
+  },
+  feeText: {
+    fontSize: 14,
+  },
+  totalText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  textArea: {
+    minHeight: 100,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    padding: 10,
+    textAlignVertical: "top",
+    fontSize: 14,
+  },
+  payOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 10,
+  },
+  paymentBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 8,
+  },
+  paymentBtnText: {
+    fontSize: 14,
+  },
+  inputGroup: {
+    marginTop: 16,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    marginBottom: 6,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 14,
+  },
+  cardDetailsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 10,
+  },
+
+  submitBtn: {
+    paddingVertical: 14,
+    alignItems: "center",
+    borderRadius: 8,
+    marginBottom: 40,
+  },
+  submitText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+});

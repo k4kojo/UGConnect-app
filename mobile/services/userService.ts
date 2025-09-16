@@ -149,6 +149,41 @@ export const userService = {
     }
   },
 
+  // Upload profile picture using the dedicated endpoint
+  uploadProfilePicture: async (imageUri: string): Promise<{ success: boolean; data?: User; error?: string }> => {
+    try {
+      const raw = await AsyncStorage.getItem("authUser");
+      if (!raw) throw new Error("No authenticated user");
+      const currentUser = JSON.parse(raw);
+
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('profilePicture', {
+        uri: imageUri,
+        type: 'image/jpeg',
+        name: 'profile.jpg',
+      } as any);
+
+      const response = await api.post('/api/v0/user/profile-picture/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      const updatedUser = response.data.user;
+      await AsyncStorage.setItem("authUser", JSON.stringify(updatedUser));
+      return { success: true, data: updatedUser };
+    } catch (error: any) {
+      return {
+        success: false,
+        error:
+          error.response?.data?.error ||
+          error.message ||
+          "Failed to upload profile picture",
+      };
+    }
+  },
+
   // Delete Account
   deleteAccount: async (): Promise<{
     success: boolean;

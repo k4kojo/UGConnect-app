@@ -1,11 +1,16 @@
 import DataCard from "@/components/data-card.component";
+import Avatar from "@/components/avatar.component";
+import ProfilePictureModal from "@/components/modals/profilePictureModal";
+import PhotoSheet from "@/components/modals/photoSheet";
 import Colors from "@/constants/colors";
 import { useThemeContext } from "@/context/ThemeContext";
 import { loadPatientProfile } from "@/redux/profileSlice";
 import { useAppDispatch, useAppSelector } from "@/redux/store";
+import { userService } from "@/services/userService";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -32,6 +37,10 @@ export default function AccountInformationScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { user, profile, isLoading } = useAppSelector((s) => s.profile);
+  
+  const [profilePictureModalVisible, setProfilePictureModalVisible] = useState(false);
+  const [photoSheetVisible, setPhotoSheetVisible] = useState(false);
+  const [localImageUrl, setLocalImageUrl] = useState<string | null>(null);
 
   const { theme } = useThemeContext();
   const themeColors = Colors[theme];
@@ -42,6 +51,83 @@ export default function AccountInformationScreen() {
   }, [dispatch]);
 
   const fullName = `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim();
+
+  const requestPermissions = async () => {
+    await ImagePicker.requestCameraPermissionsAsync();
+    await ImagePicker.requestMediaLibraryPermissionsAsync();
+  };
+
+  const takePhoto = async () => {
+    console.log('takePhoto function called');
+    try {
+      console.log('Requesting permissions...');
+      await requestPermissions();
+      console.log('Launching camera...');
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      console.log('Camera result:', result);
+      if (!result.canceled && result.assets) {
+        const uploadedUrl = result.assets[0].uri;
+        console.log('Selected image URI:', uploadedUrl);
+        setLocalImageUrl(uploadedUrl);
+        const uploadResult = await userService.uploadProfilePicture(uploadedUrl);
+        if (uploadResult.success) {
+          console.log('Profile picture uploaded successfully');
+          // Refresh profile data
+          dispatch(loadPatientProfile());
+        } else {
+          console.error('Profile picture upload failed:', uploadResult.error);
+          // Reset local image on failure
+          setLocalImageUrl(null);
+        }
+      }
+    } catch (error) {
+      console.error('Error in takePhoto:', error);
+    } finally {
+      setPhotoSheetVisible(false);
+      setProfilePictureModalVisible(false);
+    }
+  };
+
+  const choosePhoto = async () => {
+    console.log('choosePhoto function called');
+    try {
+      console.log('Requesting permissions...');
+      await requestPermissions();
+      console.log('Launching image library...');
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      console.log('Image library result:', result);
+      if (!result.canceled && result.assets) {
+        const uploadedUrl = result.assets[0].uri;
+        console.log('Selected image URI:', uploadedUrl);
+        setLocalImageUrl(uploadedUrl);
+        const uploadResult = await userService.uploadProfilePicture(uploadedUrl);
+        if (uploadResult.success) {
+          console.log('Profile picture uploaded successfully');
+          // Refresh profile data
+          dispatch(loadPatientProfile());
+        } else {
+          console.error('Profile picture upload failed:', uploadResult.error);
+          // Reset local image on failure
+          setLocalImageUrl(null);
+        }
+      }
+    } catch (error) {
+      console.error('Error in choosePhoto:', error);
+    } finally {
+      setPhotoSheetVisible(false);
+      setProfilePictureModalVisible(false);
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
@@ -57,6 +143,24 @@ export default function AccountInformationScreen() {
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>
+        {/* Profile Picture Section */}
+        <View style={styles.avatarSection}>
+          <Avatar
+            onPress={() => setProfilePictureModalVisible(true)}
+            imageUrl={localImageUrl ?? user?.profilePicture}
+            firstName={user?.firstName}
+            lastName={user?.lastName}
+            size={100}
+            containerStyle={{ backgroundColor: brand.primary }}
+            textStyle={{ color: "#fff", fontSize: 36 }}
+          />
+          <TouchableOpacity onPress={() => setPhotoSheetVisible(true)}>
+            <Text style={[styles.editText, { color: brand.primary }]}>
+              Edit
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Personal Info */}
         <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Personal</Text>
         <DataCard
@@ -80,6 +184,27 @@ export default function AccountInformationScreen() {
             { label: "Province", value: profile?.province ?? "—" },
             { label: "Address", value: profile?.address ?? "—", fullWidth: true },
           ]}
+        />
+
+        {/* Profile Picture Modal */}
+        <ProfilePictureModal
+          visible={profilePictureModalVisible}
+          onClose={() => setProfilePictureModalVisible(false)}
+          onEditPress={() => {
+            setProfilePictureModalVisible(false);
+            setPhotoSheetVisible(true);
+          }}
+          imageUrl={localImageUrl ?? user?.profilePicture}
+          firstName={user?.firstName}
+          lastName={user?.lastName}
+        />
+
+        {/* Photo Selection Sheet */}
+        <PhotoSheet
+          visible={photoSheetVisible}
+          onClose={() => setPhotoSheetVisible(false)}
+          onTakePhoto={takePhoto}
+          onChoosePhoto={choosePhoto}
         />
       </ScrollView>
     </View>

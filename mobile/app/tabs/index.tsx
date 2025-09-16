@@ -11,8 +11,9 @@ import Colors from "@/constants/colors";
 import { useLanguage } from "@/context/LanguageContext";
 import { useThemeContext } from "@/context/ThemeContext";
 import { prefetchInitialData, useAppDispatch, useAppSelector } from "@/redux/store";
+import { useAppointments, useDoctors, usePatientProfile } from "@/hooks/useCache";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
@@ -34,9 +35,12 @@ const Dashboard = () => {
   const [menuVisible, setMenuVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const menuSlide = useRef(new Animated.Value(width)).current;
-  const [appointments, setAppointments] = useState<AppointmentCardItem[]>([]);
   const [bootLoading, setBootLoading] = useState<boolean>(true);
-  const [appointmentsLoading, setAppointmentsLoading] = useState<boolean>(true);
+  
+  // Use cached data hooks
+  const { data: appointmentsData, loading: appointmentsLoading, refresh: refreshAppointments } = useAppointments({ limit: 5 });
+  const { data: doctorsData, refresh: refreshDoctors } = useDoctors();
+  const { data: profileData, refresh: refreshProfile } = usePatientProfile();
   const { theme, toggleTheme } = useThemeContext();
   const themeColors = Colors[theme];
   const brandColors = Colors.brand;
@@ -51,7 +55,6 @@ const Dashboard = () => {
         await Promise.all([
           prefetchInitialData(dispatch),
           loadStoredUser(),
-          loadAppointments(),
         ]);
       } finally {}
     };
@@ -61,6 +64,18 @@ const Dashboard = () => {
     const t = setTimeout(() => setBootLoading(false), 600);
     return () => clearTimeout(t);
   }, [dispatch]);
+
+  // Update profile data when available
+  useEffect(() => {
+    if (profileData) {
+      const fullName = profileData.firstName || "";
+      const handle = (profileData.email?.split("@")[0]) || "";
+      setUserName(fullName || handle);
+      if (profileData.profilePicture) {
+        setProfileImage(profileData.profilePicture);
+      }
+    }
+  }, [profileData]);
 
   useFocusEffect(
     useCallback(() => {
@@ -72,11 +87,16 @@ const Dashboard = () => {
   const onRefresh = useCallback(async () => {
     try {
       setRefreshing(true);
-      await Promise.all([loadStoredUser(), loadAppointments()]);
+      await Promise.all([
+        loadStoredUser(),
+        refreshAppointments(),
+        refreshDoctors(),
+        refreshProfile()
+      ]);
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [refreshAppointments, refreshDoctors, refreshProfile]);
 
   const loadStoredUser = async () => {
     try {
@@ -166,73 +186,58 @@ const Dashboard = () => {
     })
   ).current;
 
-  const loadAppointments = async () => {
-    try {
-      setAppointmentsLoading(true);
-      const { appointmentService } = await import("@/services");
-      const [allAppointments, doctors] = await Promise.all([
-        appointmentService.listAppointments({ limit: 5 }).catch(() => [] as any[]),
-        appointmentService.listDoctors().catch(() => [] as any[]),
-      ]);
-
-      const now = Date.now();
-      const upcomingTwo = allAppointments
-        .filter((a: any) => new Date(a.appointmentDate).getTime() >= now)
-        .sort(
-          (a: any, b: any) =>
-            new Date(a.appointmentDate).getTime() -
-            new Date(b.appointmentDate).getTime()
-        )
-        .slice(0, 2)
-        .map((appt: any) => {
-          const when = new Date(appt.appointmentDate);
-          const dateStr = when.toLocaleDateString(undefined, {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          });
-          const timeStr = when.toLocaleTimeString(undefined, {
-            hour: "numeric",
-            minute: "2-digit",
-          });
-          const doc = (doctors || []).find(
-            (d: any) => String(d.doctorId) === String(appt.doctorId)
-          );
-          const docName = doc
-            ? `${doc.firstName ?? ""} ${doc.lastName ?? ""}`.trim() || "Doctor"
-            : appt.doctorName || "Doctor";
-
-          const status =
-            appt.status === "confirmed"
-              ? "confirmed"
-              : appt.status === "pending"
-              ? "pending"
-              : undefined;
-
-          return {
-            id: appt.appointmentId,
-            doctorId: appt.doctorId ? String(appt.doctorId) : undefined,
-            doctorName: docName,
-            specialty:
-              (doc && doc.specialization) || appt.doctorSpecialization || appt.appointmentMode,
-            date: dateStr,
-            time: timeStr,
-            type: /online/i.test(appt.appointmentMode) ? "Video Call" : "In-Person",
-            status,
-            imageUrl: doc && (doc as any).avatarUrl ? (doc as any).avatarUrl : undefined,
-          } as AppointmentCardItem;
+  // Process cached appointments data
+  const appointments = useMemo(() => {
+    if (!appointmentsData || !doctorsData) return [];
+    
+    const now = Date.now();
+    return appointmentsData
+      .filter((a: any) => new Date(a.appointmentDate).getTime() >= now)
+      .sort(
+        (a: any, b: any) =>
+          new Date(a.appointmentDate).getTime() -
+          new Date(b.appointmentDate).getTime()
+      )
+      .slice(0, 2)
+      .map((appt: any) => {
+        const when = new Date(appt.appointmentDate);
+        const dateStr = when.toLocaleDateString(undefined, {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
         });
+        const timeStr = when.toLocaleTimeString(undefined, {
+          hour: "numeric",
+          minute: "2-digit",
+        });
+        const doc = (doctorsData || []).find(
+          (d: any) => String(d.doctorId) === String(appt.doctorId)
+        );
+        const docName = doc
+          ? `${doc.firstName ?? ""} ${doc.lastName ?? ""}`.trim() || "Doctor"
+          : appt.doctorName || "Doctor";
 
-      setAppointments(upcomingTwo);
-    } catch (error) {
-      console.error('Error loading appointments:', error);
-      // Fallback: keep previous data and avoid spamming logs
-      // Optionally, you can show a toast here if desired
-    }
-    finally {
-      setAppointmentsLoading(false);
-    }
-  };
+        const status =
+          appt.status === "confirmed"
+            ? "confirmed"
+            : appt.status === "pending"
+            ? "pending"
+            : undefined;
+
+        return {
+          id: appt.appointmentId,
+          doctorId: appt.doctorId ? String(appt.doctorId) : undefined,
+          doctorName: docName,
+          specialty:
+            (doc && doc.specialization) || appt.doctorSpecialization || appt.appointmentMode,
+          date: dateStr,
+          time: timeStr,
+          type: /online/i.test(appt.appointmentMode) ? "Video Call" : "In-Person",
+          status,
+          imageUrl: doc && (doc as any).avatarUrl ? (doc as any).avatarUrl : undefined,
+        } as AppointmentCardItem;
+      });
+  }, [appointmentsData, doctorsData]);
 
   const handleJoinCall = (appointment: AppointmentCardItem) => {
     router.push({

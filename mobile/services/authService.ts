@@ -299,3 +299,7 @@ export const authService = {
     }
   },
 };
+
+export function listDoctors() {
+  throw new Error('Function not implemented.');
+}

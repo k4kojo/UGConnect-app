@@ -1,9 +1,11 @@
-import store, { prefetchInitialData } from "@/redux/store";
+import store, { persistor, prefetchInitialData } from "@/redux/store";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Redirect, Stack, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import { Provider } from "react-redux";
+import { PersistGate } from "redux-persist/integration/react";
+import { Text, View } from "react-native";
 
 import { LanguageProvider } from "@/context/LanguageContext";
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -48,17 +50,26 @@ export default function RootLayout() {
     <>
       <PaystackProvider publicKey={PAYSTACK_PUBLIC_KEY} currency="GHS">
         <Provider store={store}>
-          <ThemeProvider>
-            <LanguageProvider>
-              <AuthGate>
-                <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="(auth)" options={{ gestureEnabled: false }} />
-                <Stack.Screen name="tabs" options={{ gestureEnabled: false }} />
-                </Stack>
-              </AuthGate>
-            </LanguageProvider>
-            <StatusBar style="auto" />
-          </ThemeProvider>
+          <PersistGate 
+            loading={
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <Text>Loading...</Text>
+              </View>
+            } 
+            persistor={persistor}
+          >
+            <ThemeProvider>
+              <LanguageProvider>
+                <AuthGate>
+                  <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="(auth)" options={{ gestureEnabled: false }} />
+                  <Stack.Screen name="tabs" options={{ gestureEnabled: false }} />
+                  </Stack>
+                </AuthGate>
+              </LanguageProvider>
+              <StatusBar style="auto" />
+            </ThemeProvider>
+          </PersistGate>
         </Provider>
       </PaystackProvider>
     </>

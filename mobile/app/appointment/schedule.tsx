@@ -4,11 +4,10 @@ import StepHeader from "@/components/step-header-component";
 import Colors from "@/constants/colors";
 import { useThemeContext } from "@/context/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
-import { fetchDoctors } from "@/redux/doctorsSlice";
-import { useAppDispatch, useAppSelector } from "@/redux/store";
+import { useDoctors } from "@/hooks/useCache";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
 	FlatList,
 	RefreshControl,
@@ -41,24 +40,27 @@ const ScheduleAppointment = () => {
 	const { t } = useLanguage();
 
 	const [searchQuery, setSearchQuery] = useState("");
-	const dispatch = useAppDispatch();
-	const { items: doctors, isLoading } = useAppSelector((s) => s.doctors);
+	
+	// Use cache service for doctors data
+	const {
+		data: doctors,
+		loading: isLoading,
+		error,
+		refresh: refreshDoctors,
+		isStale
+	} = useDoctors();
 
-	useEffect(() => {
-		if (!doctors || doctors.length === 0) {
-			dispatch(fetchDoctors());
-		}
-	}, [dispatch, doctors?.length]);
+	const doctorsList = doctors || [];
 
 	const filteredDoctors = useMemo(
 		() =>
-			doctors.filter((doc) => {
+			doctorsList.filter((doc) => {
 				const name = `${doc.firstName ?? ""} ${doc.lastName ?? ""}`.trim();
 				const specialty = doc.specialization ?? "";
 				const q = searchQuery.toLowerCase();
 				return name.toLowerCase().includes(q) || specialty.toLowerCase().includes(q);
 			}),
-		[doctors, searchQuery]
+		[doctorsList, searchQuery]
 	);
 
 	const [refreshing, setRefreshing] = useState(false);
@@ -66,11 +68,11 @@ const ScheduleAppointment = () => {
 	const onRefresh = React.useCallback(async () => {
 		try {
 			setRefreshing(true);
-			await dispatch(fetchDoctors());
+			await refreshDoctors();
 		} finally {
 			setRefreshing(false);
 		}
-	}, [dispatch]);
+	}, [refreshDoctors]);
 
 	return (
 		<View style={[styles.container, { backgroundColor: themeColors.background }]}>
@@ -108,6 +110,18 @@ const ScheduleAppointment = () => {
 			{/* Doctor List */}
 			{isLoading ? (
 				<DoctorListSkeleton />
+			) : error ? (
+				<View style={styles.errorContainer}>
+					<Text style={[styles.errorText, { color: themeColors.text }]}>
+						{t("schedule.errorLoading")}
+					</Text>
+					<TouchableOpacity 
+						style={[styles.retryButton, { backgroundColor: Colors.brand.primary }]}
+						onPress={() => refreshDoctors()}
+					>
+						<Text style={styles.retryButtonText}>{t("common.retry")}</Text>
+					</TouchableOpacity>
+				</View>
 			) : filteredDoctors.length === 0 ? (
 				<EmptyState
 					icon="person-outline"
@@ -227,6 +241,27 @@ const styles = StyleSheet.create({
 	emptyText: {
 		fontSize: 16,
 		textAlign: "center",
+	},
+	errorContainer: {
+		flex: 1,
+		justifyContent: "center",
+		alignItems: "center",
+		paddingVertical: 40,
+	},
+	errorText: {
+		fontSize: 16,
+		textAlign: "center",
+		marginBottom: 16,
+	},
+	retryButton: {
+		paddingHorizontal: 20,
+		paddingVertical: 10,
+		borderRadius: 8,
+	},
+	retryButtonText: {
+		color: "#fff",
+		fontSize: 14,
+		fontWeight: "500",
 	},
 	doctorCard: {
 		padding: 16,

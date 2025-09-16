@@ -47,11 +47,11 @@ export function useCache<T>({
     } finally {
       setLoading(false);
     }
-  }, [key, fetchFn, ttl]);
+  }, [key, ttl]);
 
   const refresh = useCallback(async () => {
     await loadData(true);
-  }, [loadData]);
+  }, []);
 
   const invalidate = useCallback(async () => {
     await cacheService.delete(key);
@@ -67,11 +67,11 @@ export function useCache<T>({
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [key, ttl]);
 
   useEffect(() => {
     checkStale();
-  }, [checkStale]);
+  }, [key]);
 
   // Auto-refresh setup
   useEffect(() => {
@@ -82,7 +82,7 @@ export function useCache<T>({
     }, refreshInterval);
 
     return () => clearInterval(interval);
-  }, [autoRefresh, refreshInterval, loadData]);
+  }, [autoRefresh, refreshInterval]);
 
   return {
     data,
@@ -201,6 +201,42 @@ export function useLabResults() {
   });
 }
 
+// Additional specialized hooks for other data types
+export function usePaymentHistory() {
+  return useCache({
+    key: CACHE_KEYS.PAYMENTS,
+    fetchFn: async () => {
+      // This would be implemented when payment service is available
+      return [];
+    },
+    ttl: CACHE_TTL.LONG,
+    autoRefresh: false,
+  });
+}
+
+export function useDoctorProfile(doctorId: string) {
+  return useCache({
+    key: CACHE_KEYS.DOCTOR_PROFILE(doctorId),
+    fetchFn: async () => {
+      const doctors = await appointmentService.listDoctors();
+      return doctors.find((d: any) => String(d.doctorId) === String(doctorId));
+    },
+    ttl: CACHE_TTL.MEDIUM,
+    autoRefresh: false,
+  });
+}
+
+export function useAppointmentDetails(appointmentId: string) {
+  return useCache({
+    key: CACHE_KEYS.APPOINTMENT_DETAILS(appointmentId),
+    fetchFn: async () => {
+      return appointmentService.getAppointmentById(appointmentId);
+    },
+    ttl: CACHE_TTL.SHORT,
+    autoRefresh: false,
+  });
+}
+
 // Cache management hook
 export function useCacheManagement() {
   const [cacheStats, setCacheStats] = useState<{
@@ -223,11 +259,11 @@ export function useCacheManagement() {
   const invalidatePattern = useCallback(async (pattern: string) => {
     await cacheService.invalidatePattern(pattern);
     await getStats();
-  }, [getStats]);
+  }, []);
 
   useEffect(() => {
     getStats();
-  }, [getStats]);
+  }, []);
 
   return {
     cacheStats,

@@ -1,17 +1,86 @@
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import Colors from "@/constants/colors";
 import { useThemeContext } from "@/context/ThemeContext";
+import { consultationService, ConsultationDetails, Prescription, LabResult } from "@/services/consultationService";
 
 type ConsultationInfoProps = {
   tab: number;
+  consultationId?: string;
 };
 
-const ConsultationInfo = ({ tab }: ConsultationInfoProps) => {
+const ConsultationInfo = ({ tab, consultationId }: ConsultationInfoProps) => {
   const { theme } = useThemeContext();
   const themeColors = Colors[theme];
+  
+  const [consultationDetails, setConsultationDetails] = useState<ConsultationDetails | null>(null);
+  const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+  const [labResults, setLabResults] = useState<LabResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (consultationId) {
+      fetchConsultationData();
+    }
+  }, [consultationId, tab]);
+
+  const fetchConsultationData = async () => {
+    if (!consultationId) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      
+      if (tab === 0) {
+        // Fetch consultation details for Overview tab
+        const details = await consultationService.getConsultationById(consultationId);
+        setConsultationDetails(details);
+      } else if (tab === 1) {
+        // Fetch prescriptions for Prescriptions tab
+        const prescriptionsData = await consultationService.getConsultationPrescriptions(consultationId);
+        setPrescriptions(prescriptionsData);
+      } else if (tab === 2) {
+        // Fetch lab results for Lab Results tab
+        const labResultsData = await consultationService.getConsultationLabResults(consultationId);
+        setLabResults(labResultsData);
+      }
+    } catch (err: any) {
+      console.error('Error fetching consultation data:', err);
+      setError(err.message || 'Failed to load consultation data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+  };
+
+  const formatTime = (dateString: string) => {
+    return new Date(dateString).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const calculateDuration = (startDate: string, endDate?: string) => {
+    if (!endDate) return 'N/A';
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffMs = end.getTime() - start.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const hours = Math.floor(diffMins / 60);
+    const minutes = diffMins % 60;
+    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  };
   return (
     <View
       style={{
@@ -49,7 +118,7 @@ const ConsultationInfo = ({ tab }: ConsultationInfoProps) => {
                   <Text style={[styles.bold, { color: themeColors.text }]}>
                     Date:{" "}
                   </Text>
-                  2024-01-10
+                  {consultationDetails ? formatDate(consultationDetails.consultationDate) : '2024-01-10'}
                 </Text>
               </View>
 
@@ -64,7 +133,7 @@ const ConsultationInfo = ({ tab }: ConsultationInfoProps) => {
                     {" "}
                     Type:{" "}
                   </Text>
-                  Video Call
+                  {consultationDetails?.consultationMode || 'Video Call'}
                 </Text>
               </View>
               <View style={[styles.row, { marginTop: 8 }]}>
@@ -78,7 +147,7 @@ const ConsultationInfo = ({ tab }: ConsultationInfoProps) => {
                     {" "}
                     Duration:{" "}
                   </Text>
-                  30m 47s
+                  {consultationDetails ? calculateDuration(consultationDetails.consultationDate, consultationDetails.updatedAt) : '30m 47s'}
                 </Text>
               </View>
             </View>
@@ -100,7 +169,7 @@ const ConsultationInfo = ({ tab }: ConsultationInfoProps) => {
                   <Text style={[styles.bold, { color: themeColors.text }]}>
                     Time:{" "}
                   </Text>
-                  10:00 AM
+                  {consultationDetails ? formatTime(consultationDetails.consultationDate) : '10:00 AM'}
                 </Text>
               </View>
               <View
@@ -109,7 +178,7 @@ const ConsultationInfo = ({ tab }: ConsultationInfoProps) => {
                   { backgroundColor: themeColors.success },
                 ]}
               >
-                <Text style={styles.statusBadgeText}>completed</Text>
+                <Text style={styles.statusBadgeText}>{consultationDetails?.status || 'completed'}</Text>
               </View>
             </View>
           </View>
@@ -122,7 +191,7 @@ const ConsultationInfo = ({ tab }: ConsultationInfoProps) => {
             Reason for Visit
           </Text>
           <Text style={[styles.sectionValue, { color: themeColors.subText }]}>
-            Follow-up consultation for hypertension management
+            {consultationDetails?.reasonForVisit || 'Follow-up consultation for hypertension management'}
           </Text>
 
           {/* Diagnosis */}
@@ -130,7 +199,7 @@ const ConsultationInfo = ({ tab }: ConsultationInfoProps) => {
             Diagnosis
           </Text>
           <Text style={[styles.sectionValue, { color: themeColors.subText }]}>
-            Common Cold
+            {loading ? 'Loading diagnosis...' : error ? 'Unable to load diagnosis' : 'Common Cold'}
           </Text>
         </View>
       )}
@@ -147,9 +216,32 @@ const ConsultationInfo = ({ tab }: ConsultationInfoProps) => {
           <Text style={[styles.sectionLabel, { color: themeColors.text }]}>
             Prescriptions
           </Text>
-          <Text style={[styles.sectionValue, { color: themeColors.subText }]}>
-            No prescriptions found.
-          </Text>
+          {loading ? (
+            <Text style={[styles.sectionValue, { color: themeColors.subText }]}>Loading prescriptions...</Text>
+          ) : error ? (
+            <Text style={[styles.sectionValue, { color: themeColors.subText }]}>Unable to load prescriptions</Text>
+          ) : prescriptions.length > 0 ? (
+            prescriptions.map((prescription, index) => (
+              <View key={prescription.prescriptionId} style={{ marginBottom: 12 }}>
+                <Text style={[styles.prescriptionName, { color: themeColors.text }]}>
+                  {prescription.medicationName}
+                </Text>
+                <Text style={[styles.sectionValue, { color: themeColors.subText }]}>
+                  {prescription.dosage} - {prescription.frequency}
+                </Text>
+                <Text style={[styles.sectionValue, { color: themeColors.subText }]}>
+                  Duration: {prescription.duration}
+                </Text>
+                {prescription.instructions && (
+                  <Text style={[styles.sectionValue, { color: themeColors.subText }]}>
+                    Instructions: {prescription.instructions}
+                  </Text>
+                )}
+              </View>
+            ))
+          ) : (
+            <Text style={[styles.sectionValue, { color: themeColors.subText }]}>No prescriptions found.</Text>
+          )}
         </View>
       )}
       {tab === 2 && (
@@ -165,9 +257,30 @@ const ConsultationInfo = ({ tab }: ConsultationInfoProps) => {
           <Text style={[styles.sectionLabel, { color: themeColors.text }]}>
             Lab Results
           </Text>
-          <Text style={[styles.sectionValue, { color: themeColors.subText }]}>
-            No lab results found.
-          </Text>
+          {loading ? (
+            <Text style={[styles.sectionValue, { color: themeColors.subText }]}>Loading lab results...</Text>
+          ) : error ? (
+            <Text style={[styles.sectionValue, { color: themeColors.subText }]}>Unable to load lab results</Text>
+          ) : labResults.length > 0 ? (
+            labResults.map((result, index) => (
+              <View key={result.labResultId} style={{ marginBottom: 12 }}>
+                <Text style={[styles.labTestName, { color: themeColors.text }]}>
+                  {result.testName}
+                </Text>
+                <Text style={[styles.sectionValue, { color: themeColors.subText }]}>
+                  Result: {result.result} {result.unit}
+                </Text>
+                <Text style={[styles.sectionValue, { color: themeColors.subText }]}>
+                  Normal Range: {result.normalRange}
+                </Text>
+                <Text style={[styles.sectionValue, { color: themeColors.subText }]}>
+                  Status: {result.status}
+                </Text>
+              </View>
+            ))
+          ) : (
+            <Text style={[styles.sectionValue, { color: themeColors.subText }]}>No lab results found.</Text>
+          )}
         </View>
       )}
       {tab === 3 && (
@@ -256,6 +369,16 @@ const styles = StyleSheet.create({
     color: "#4b5563",
     marginBottom: 8,
     fontSize: 15,
+  },
+  prescriptionName: {
+    fontWeight: "600",
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  labTestName: {
+    fontWeight: "600",
+    fontSize: 16,
+    marginBottom: 4,
   },
 });
 

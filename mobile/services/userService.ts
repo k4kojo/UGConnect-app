@@ -46,14 +46,32 @@ export const userService = {
   },
 
   // Fetch authenticated user's combined patient profile (user + patient profile)
-  fetchPatientProfile: async (): Promise<{ user: User; profile: PatientProfile }> => {
+  fetchPatientProfile: async (): Promise<{
+    profilePicture: any;
+    email: any;
+    firstName: string;
+    role: string;
+    phoneNumber: string;
+    lastName: string;
+    user: User;
+    profile: PatientProfile;
+  }> => {
     const response = await api.get("/api/v0/patient-profile/me");
     const { user, profile } = response.data;
     // keep local authUser in sync for name/email/phone updates
     if (user) {
       await AsyncStorage.setItem("authUser", JSON.stringify(user));
     }
-    return { user, profile };
+    return {
+      profilePicture: user.profilePicture,
+      email: user.email,
+      firstName: user.firstName,
+      role: user.role,
+      phoneNumber: user.phoneNumber,
+      lastName: user.lastName,
+      user,
+      profile
+    };
   },
 
   // Upsert patient profile and return refreshed data
@@ -69,10 +87,20 @@ export const userService = {
     city?: string | null;
     province?: string | null;
     address?: string | null;
-  }): Promise<{ user: User; profile: PatientProfile }> => {
+  }): Promise<{ 
+    profilePicture: any; 
+    email: any; 
+    firstName: string;
+    role: string;
+    phoneNumber: string;
+    lastName: string;
+    user: User; 
+    profile: PatientProfile; 
+  }> => {
     await api.put("/api/v0/patient-profile/me", updates);
     // fetch updated combined data
-    return await userService.fetchPatientProfile();
+    const result = await userService.fetchPatientProfile();
+    return result;
   },
 
   // Update current user profile (partial). Only supported backend fields will be sent.

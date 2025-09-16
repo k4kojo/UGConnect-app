@@ -455,7 +455,11 @@ const ChatScreen = () => {
     try {
       // Toggle off if the same message is playing
       if (playingId === msg.id) {
-        audioPlayer.pause();
+        try {
+          audioPlayer.pause();
+        } catch (pauseError) {
+          console.warn("Failed to pause audio player:", pauseError);
+        }
         setPlayingId(null);
         setPlaybackPos(0);
         setPlaybackDur(0);
@@ -508,7 +512,11 @@ const ChatScreen = () => {
   useEffect(() => {
     return () => {
       // Cleanup audio resources
-      audioPlayer.pause();
+      try {
+        audioPlayer.pause();
+      } catch (cleanupError) {
+        console.warn("Failed to pause audio player during cleanup:", cleanupError);
+      }
       if (recordTimerRef.current) {
         clearInterval(recordTimerRef.current as any);
         recordTimerRef.current = null;

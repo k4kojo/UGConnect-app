@@ -9,9 +9,7 @@ import Colors from "@/constants/colors";
 import { useThemeContext } from "@/context/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
 import EmptyState from "@/components/EmptyState";
-import { fetchAppointments } from "@/redux/appointmentsSlice";
-import { fetchDoctors } from "@/redux/doctorsSlice";
-import { useAppDispatch, useAppSelector } from "@/redux/store";
+import { useAppointments, useDoctors } from "@/hooks/useCache";
 import { Ionicons } from "@expo/vector-icons";
 import {
   FlatList,
@@ -35,23 +33,29 @@ const Consultation = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState(0);
+  const [selectedConsultationId, setSelectedConsultationId] = useState<string | null>(null);
 
   const { theme } = useThemeContext();
   const themeColors = Colors[theme];
   const brandColors = Colors.brand;
 
-  // Redux integration
-  const dispatch = useAppDispatch();
-  const { items: appointments, isLoading } = useAppSelector((s: any) => s.appointments);
-  const { items: doctors } = useAppSelector((s: any) => s.doctors);
+  // Cache service integration
+  const { 
+    data: appointments, 
+    loading: appointmentsLoading, 
+    refresh: refreshAppointments 
+  } = useAppointments();
+  
+  const { 
+    data: doctors, 
+    loading: doctorsLoading, 
+    refresh: refreshDoctors 
+  } = useDoctors();
 
-  useEffect(() => {
-    // Fetch appointments and doctors data
-    dispatch(fetchAppointments());
-    dispatch(fetchDoctors());
-  }, [dispatch]);
+  const isLoading = appointmentsLoading || doctorsLoading;
 
-  const openModal = () => {
+  const openModal = (consultationId?: string) => {
+    setSelectedConsultationId(consultationId || null);
     setModalVisible(true);
   };
 
@@ -59,13 +63,13 @@ const Consultation = () => {
     try {
       setRefreshing(true);
       await Promise.all([
-        dispatch(fetchAppointments()),
-        dispatch(fetchDoctors())
+        refreshAppointments(),
+        refreshDoctors()
       ]);
     } finally {
       setRefreshing(false);
     }
-  }, [dispatch]);
+  }, [refreshAppointments, refreshDoctors]);
 
   return (
     <View
@@ -82,30 +86,40 @@ const Consultation = () => {
         </Text>
         
         {isLoading ? (
-          <View style={{ alignItems: "center", paddingVertical: 40 }}>
-            <Text style={{ color: themeColors.subText, fontSize: 14 }}>
+          <View style={styles.loadingContainer}>
+            <Text style={[styles.loadingText, { color: themeColors.subText }]}>
               Loading consultations...
             </Text>
           </View>
         ) : appointments && appointments.length > 0 ? (
           <FlatList
-            data={appointments.map((appt: any) => {
-              const when = new Date(appt.appointmentDate);
-              const dateStr = when.toLocaleDateString(undefined, {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              });
-              const doc = (doctors || []).find((d: any) => String(d.doctorId) === String(appt.doctorId));
-              const docName = doc ? `${doc.firstName ?? ""} ${doc.lastName ?? ""}`.trim() || "Doctor" : (appt.doctorName || "Doctor");
-              
-              return {
-                id: appt.appointmentId,
-                doctor: docName,
-                date: dateStr,
-                appointment: appt,
-              };
-            })}
+            data={appointments
+              .filter((appt: any) => {
+                // Only show past appointments
+                const appointmentDate = new Date(appt.appointmentDate);
+                const currentDate = new Date();
+                // Set current date to start of day for accurate comparison
+                currentDate.setHours(0, 0, 0, 0);
+                appointmentDate.setHours(0, 0, 0, 0);
+                return appointmentDate < currentDate;
+              })
+              .map((appt: any) => {
+                const when = new Date(appt.appointmentDate);
+                const dateStr = when.toLocaleDateString(undefined, {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                });
+                const doc = (doctors || []).find((d: any) => String(d.doctorId) === String(appt.doctorId));
+                const docName = doc ? `${doc.firstName ?? ""} ${doc.lastName ?? ""}`.trim() || "Doctor" : (appt.doctorName || "Doctor");
+                
+                return {
+                  id: appt.appointmentId,
+                  doctor: docName,
+                  date: dateStr,
+                  appointment: appt,
+                };
+              })}
             keyExtractor={(item) => item.id}
             refreshControl={
               <RefreshControl
@@ -136,7 +150,7 @@ const Consultation = () => {
                     {item.date}
                   </Text>
                 </View>
-                <TouchableOpacity onPress={openModal}>
+                <TouchableOpacity onPress={() => openModal(item.id)}>
                   <Text
                     style={[styles.viewSummary, { color: brandColors.primary }]}
                   >
@@ -149,7 +163,7 @@ const Consultation = () => {
         ) : (
           <EmptyState
             icon="medical-outline"
-            title="No consultation history found"
+            title="No past consultations found"
           />
         )}
       </View>
@@ -212,7 +226,7 @@ const Consultation = () => {
               }}
               showsVerticalScrollIndicator={false}
             >
-              <ConsultationInfo tab={tab} />
+              <ConsultationInfo tab={tab} consultationId={selectedConsultationId || undefined} />
               <Participants tab={tab} />
               <NotesAndRecordings
                 tab={tab}
@@ -286,5 +300,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     padding: 6,
+  },
+  loadingContainer: {
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 14,
   },
 });

@@ -6,11 +6,9 @@ import TopHeader from "@/components/top-header.component";
 import Colors from "@/constants/colors";
 import { useLanguage } from "@/context/LanguageContext";
 import { useThemeContext } from "@/context/ThemeContext";
-import { fetchAppointments } from "@/redux/appointmentsSlice";
-import { fetchDoctors } from "@/redux/doctorsSlice";
-import { prefetchInitialData, useAppDispatch, useAppSelector } from "@/redux/store";
+import { useCachedAppointments } from "@/hooks/useCachedData";
 import { router } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -32,30 +30,24 @@ const Appointments = () => {
   const brandColors = Colors.brand;
   const { t } = useLanguage();
 
-  // API-driven appointments via Redux
-  const dispatch = useAppDispatch();
-  const { items: appointments, isLoading } = useAppSelector((s: any) => s.appointments);
-  const { items: doctors } = useAppSelector((s: any) => s.doctors);
-  const [refreshing, setRefreshing] = useState(false);
-
-  useEffect(() => {
-    prefetchInitialData(dispatch);
-  }, [dispatch]);
-
-  useEffect(() => {
-    if (!doctors || doctors.length === 0) {
-      dispatch(fetchDoctors());
-    }
-  }, [dispatch]);
+  // Cache-aware data fetching
+  const {
+    data: appointments,
+    doctors,
+    isLoading,
+    isRefreshing,
+    error,
+    refresh,
+    clearError
+  } = useCachedAppointments();
 
   const onRefresh = React.useCallback(async () => {
     try {
-      setRefreshing(true);
-      await dispatch(fetchAppointments());
-    } finally {
-      setRefreshing(false);
+      await refresh();
+    } catch (error) {
+      console.error("Error refreshing data:", error);
     }
-  }, [dispatch]);
+  }, [refresh]);
 
   const upcoming = useMemo(() => {
     const now = Date.now();
@@ -84,15 +76,13 @@ const Appointments = () => {
       <TopHeader screen="appointments" />
 
       {/* Tabs */}
-      <View
-        style={[styles.tabContainer, { backgroundColor: themeColors.subCard }]}
-      >
+      <View style={[styles.tabContainer, { backgroundColor: themeColors.subCard}]}>
         {["upcoming", "past"].map((tab) => (
           <Pressable
             key={tab}
             style={[
               styles.tab,
-              selectedTab === tab && { backgroundColor: brandColors.primary },
+              selectedTab === tab ? styles.activeTab : styles.inactiveTab,
             ]}
             onPress={() => setSelectedTab(tab as "upcoming" | "past")}
           >
@@ -102,11 +92,12 @@ const Appointments = () => {
                 { color: selectedTab === tab ? "#fff" : themeColors.text },
               ]}
             >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)} {tab === "upcoming" ? `(${upcoming.length})` : `(${past.length})`}
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </Text>
           </Pressable>
-        ))}
+        ))} 
       </View>
+
 
       <ScrollView
           contentContainerStyle={[
@@ -115,7 +106,7 @@ const Appointments = () => {
           ]}
           refreshControl={
             <RefreshControl
-              refreshing={refreshing}
+              refreshing={isRefreshing}
               onRefresh={onRefresh}
               tintColor={themeColors.text}
             />
@@ -201,17 +192,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     marginVertical: 20,
     marginHorizontal: 20,
-    borderRadius: 20,
-    overflow: "hidden",
-    zIndex: 1,
+    borderRadius: 50,
+    padding: 8,
   },
   tab: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 12,
     alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 50,
+  },
+  activeTab: {
+    backgroundColor: Colors.brand.primary,
+  },
+  inactiveTab: {
+    backgroundColor: "transparent",
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "600",
   },
   appointmentCardContainer: {

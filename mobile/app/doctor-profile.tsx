@@ -1,7 +1,8 @@
 import Avatar from "@/components/avatar.component";
 import Colors from "@/constants/colors";
 import { useThemeContext } from "@/context/ThemeContext";
-import { createDoctorFeedback, listDoctors } from "@/services/authService";
+import { feedbackService } from "@/services/feedbackService";
+import { useDoctors } from "@/hooks/useCache";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
@@ -27,21 +28,17 @@ const DoctorProfileScreen = () => {
   const themeColors = Colors[theme];
   const params = useLocalSearchParams<{ doctorId?: string }>();
   const [doctor, setDoctor] = useState<DoctorProfile | null>(null);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  
+  // Use cached doctors data
+  const { data: doctorsData, loading } = useDoctors();
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const doctors = await listDoctors();
-        const found = doctors.find((d: any) => String(d.doctorId) === String(params.doctorId || ""));
-        setDoctor(found || null);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [params.doctorId]);
+    if (doctorsData) {
+      const found = doctorsData.find((d: any) => String(d.doctorId) === String(params.doctorId || ""));
+      setDoctor(found || null);
+    }
+  }, [doctorsData, params.doctorId]);
 
   const fullName = useMemo(() => {
     if (!doctor) return "Doctor";
@@ -158,7 +155,7 @@ const DoctorFeedback: React.FC<{ doctorId: string }> = ({ doctorId }) => {
     if (!doctorId || sending) return;
     try {
       setSending(true);
-      await createDoctorFeedback({ doctorId, rating, comment });
+      await feedbackService.createDoctorFeedback({ doctorId, rating, comment });
       setSent(true);
       setComment("");
     } catch (e) {

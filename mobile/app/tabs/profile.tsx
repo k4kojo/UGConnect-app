@@ -5,6 +5,7 @@ import SettingItem from "@/components/settings-item";
 import Colors from "@/constants/colors";
 import { useThemeContext } from "@/context/ThemeContext";
 import { userService } from "@/services/userService";
+import { usePatientProfile } from "@/hooks/useCache";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -29,7 +30,15 @@ export default function ProfileScreen() {
     role?: string;
     profilePicture?: string;
   } | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  
+  // Use cached profile data
+  const { 
+    data: profileData, 
+    loading: isLoading, 
+    error,
+    refresh: refreshProfile,
+    invalidate: invalidateProfile 
+  } = usePatientProfile();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [localImageUrl, setLocalImageUrl] = useState<string | null>(null);
 
@@ -37,29 +46,52 @@ export default function ProfileScreen() {
   const themeColors = Colors[theme];
   const brand = Colors.brand;
 
+  // Update local profile state when cached data changes
   useEffect(() => {
-    const fetchProfile = async () => {
-      setIsLoading(true);
-      try {
-        const user = await userService.getStoredUser();
-        if (user) {
-          setProfile({
-            firstName: user.firstName,
-            lastName: user.lastName,
-            email: user.email,
-            phoneNumber: user.phoneNumber,
-            role: user.role,
-            profilePicture: user.profilePicture,
-          });
+    if (profileData) {
+      console.log('Profile data from cache:', profileData);
+      
+      // Handle nested structure - cached data has user object nested inside
+      const userData = profileData.user || profileData;
+      
+      setProfile({
+        firstName: userData.firstName || "",
+        lastName: userData.lastName || "",
+        email: userData.email || "",
+        phoneNumber: userData.phoneNumber || "",
+        role: userData.role || "",
+        profilePicture: userData.profilePicture || "",
+      });
+    } else if (!isLoading) {
+      // If no cached data and not loading, try to get stored user immediately
+      const getStoredUser = async () => {
+        try {
+          const user = await userService.getStoredUser();
+          console.log('Stored user data:', user);
+          if (user) {
+            setProfile({
+              firstName: user.firstName || "",
+              lastName: user.lastName || "",
+              email: user.email || "",
+              phoneNumber: user.phoneNumber || "",
+              role: user.role || "",
+              profilePicture: user.profilePicture || "",
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching stored profile:', error);
         }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchProfile();
-  }, []);
+      };
+      getStoredUser();
+    }
+  }, [profileData, isLoading]);
 
   const fullName = `${profile?.firstName ?? ""} ${profile?.lastName ?? ""}`.trim();
+  
+  // Debug logging
+  console.log('Current profile state:', profile);
+  console.log('Full name:', fullName);
+  console.log('Email:', profile?.email);
 
   const requestPermissions = async () => {
     await ImagePicker.requestCameraPermissionsAsync();
@@ -81,6 +113,8 @@ export default function ProfileScreen() {
 
       await userService.updateCurrentUser({ profilePicture: uploadedUrl });
       setProfile((p) => (p ? { ...p, profilePicture: uploadedUrl } : p));
+      // Invalidate cache to ensure fresh data on next load
+      invalidateProfile();
       }
     } finally {
       setSheetVisible(false);
@@ -102,6 +136,8 @@ export default function ProfileScreen() {
 
       await userService.updateCurrentUser({ profilePicture: uploadedUrl });
       setProfile((p) => (p ? { ...p, profilePicture: uploadedUrl } : p));
+      // Invalidate cache to ensure fresh data on next load
+      invalidateProfile();
       }
     } finally {
       setSheetVisible(false);
@@ -113,21 +149,11 @@ export default function ProfileScreen() {
   const onRefresh = React.useCallback(async () => {
     try {
       setRefreshing(true);
-      const user = await userService.getStoredUser();
-      if (user) {
-        setProfile({
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-          phoneNumber: user.phoneNumber,
-          role: user.role,
-          profilePicture: user.profilePicture,
-        });
-      }
+      await refreshProfile();
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [refreshProfile]);
 
   if (isLoading) {
     return (
@@ -136,6 +162,25 @@ export default function ProfileScreen() {
         backgroundColor={themeColors.background}
         color={brand.primary}
       />
+    );
+  }
+
+  // Show error state with retry option
+  if (error && !profileData) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: themeColors.background }} edges={["top"]}>
+        <View style={[styles.errorContainer, { backgroundColor: themeColors.background }]}>
+          <Text style={[styles.errorText, { color: themeColors.text }]}>
+            Failed to load profile data
+          </Text>
+          <TouchableOpacity 
+            style={[styles.retryButton, { backgroundColor: brand.primary }]}
+            onPress={() => refreshProfile()}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -267,4 +312,25 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   section: { marginBottom: 20 },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
 });

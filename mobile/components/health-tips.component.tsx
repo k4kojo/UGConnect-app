@@ -32,20 +32,42 @@ const HealthTips = () => {
     const fetchTips = async () => {
       try {
         const res = await fetch(
-          "https://raw.githubusercontent.com/sylvester-dev/mock-health-tips/main/tips.json"
+          "https://raw.githubusercontent.com/sylvester-dev/mock-health-tips/main/tips.json",
+          {
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+          }
         );
-        const data = await res.json();
-        if (Array.isArray(data)) {
+        
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        
+        const text = await res.text();
+        const data = JSON.parse(text);
+        
+        if (Array.isArray(data) && data.length > 0) {
           setTips(data);
         } else {
-          throw new Error("Invalid data format");
+          throw new Error("Invalid data format or empty array");
         }
       } catch (err) {
-        console.log(
+        console.warn(
           "Error fetching health tips. Using local data instead.",
-          err
+          err instanceof Error ? err.message : 'Unknown error'
         );
-        setTips(tipsData);
+        // Ensure we always have fallback data
+        if (Array.isArray(tipsData) && tipsData.length > 0) {
+          setTips(tipsData);
+        } else {
+          // Ultimate fallback
+          setTips([{
+            title: "Stay Healthy",
+            tip: "Remember to drink water, exercise regularly, and get enough sleep."
+          }]);
+        }
       }
     };
 

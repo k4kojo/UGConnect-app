@@ -13,6 +13,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { appointmentAPI } from '../../services/api.js';
+import WebRTCService from '../../services/webrtcService.js';
 
 const VideoSession = () => {
   const { appointmentId } = useParams();
@@ -25,16 +26,21 @@ const VideoSession = () => {
   const [micEnabled, setMicEnabled] = useState(true);
   const [sessionDuration, setSessionDuration] = useState(0);
   const [appointment, setAppointment] = useState(null);
+  const [connectionStatus, setConnectionStatus] = useState('connecting');
+  const [participants, setParticipants] = useState([]);
   
   // Media state
   const [localStream, setLocalStream] = useState(null);
+  const [remoteStreams, setRemoteStreams] = useState(new Map());
   const [isLoadingMedia, setIsLoadingMedia] = useState(true);
   const localVideoRef = useRef(null);
+  const remoteVideoRefs = useRef(new Map());
   const sessionStartTime = useRef(Date.now());
+  const webrtcService = useRef(null);
   
   // Get initial data from navigation state
   const initialAppointment = location.state?.appointment;
-  const initialStream = location.state?.initialStream;
+  const roomId = location.state?.roomId || `room_${appointmentId}_${Date.now()}`;
 
   // Session timer
   useEffect(() => {
@@ -45,56 +51,89 @@ const VideoSession = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Initialize media stream
+  // Initialize WebRTC
   useEffect(() => {
-    const initializeMedia = async () => {
+    const initializeWebRTC = async () => {
       try {
         setIsLoadingMedia(true);
         
-        // Use initial stream if available, otherwise request new one
-        let stream = initialStream;
+        // Initialize WebRTC service
+        const serverUrl = import.meta.env.VITE_API_BASE_URL?.replace('http', 'ws') || 'ws://localhost:5000';
+        webrtcService.current = new WebRTCService(serverUrl);
         
-        if (!stream) {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true
+        // Set up event handlers
+        webrtcService.current.onLocalStream = (stream) => {
+          setLocalStream(stream);
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = stream;
+          }
+        };
+        
+        webrtcService.current.onRemoteStream = (userId, stream) => {
+          setRemoteStreams(prev => new Map(prev.set(userId, stream)));
+          
+          // Set stream to video element
+          const videoElement = remoteVideoRefs.current.get(userId);
+          if (videoElement) {
+            videoElement.srcObject = stream;
+          }
+        };
+        
+        webrtcService.current.onRemoteStreamRemoved = (userId) => {
+          setRemoteStreams(prev => {
+            const newMap = new Map(prev);
+            newMap.delete(userId);
+            return newMap;
           });
-        }
+        };
         
-        setLocalStream(stream);
+        webrtcService.current.onConnectionStateChange = (state) => {
+          setConnectionStatus(state);
+        };
         
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
+        webrtcService.current.onParticipantJoined = (participant) => {
+          setParticipants(prev => [...prev, participant.userId]);
+        };
         
-        // Set initial states based on stream tracks
-        const videoTrack = stream.getVideoTracks()[0];
-        const audioTrack = stream.getAudioTracks()[0];
+        webrtcService.current.onParticipantLeft = (userId) => {
+          setParticipants(prev => prev.filter(id => id !== userId));
+        };
         
-        if (videoTrack) {
-          setCameraEnabled(videoTrack.enabled);
-        }
-        if (audioTrack) {
-          setMicEnabled(audioTrack.enabled);
-        }
+        webrtcService.current.onError = (error) => {
+          console.error('WebRTC Error:', error);
+          toast.error(`Connection Error: ${error.message}`);
+        };
+
+        // Connect to signaling server
+        webrtcService.current.connect();
+        
+        // Initialize local stream
+        await webrtcService.current.initializeLocalStream({
+          video: true,
+          audio: true
+        });
+        
+        // Join room
+        const userId = `doctor_${Date.now()}`;
+        await webrtcService.current.joinRoom(roomId, userId);
         
       } catch (error) {
-        console.error('Error accessing media devices:', error);
-        toast.error('Failed to access camera/microphone');
+        console.error('Failed to initialize WebRTC:', error);
+        toast.error('Failed to initialize video call');
       } finally {
         setIsLoadingMedia(false);
       }
     };
 
-    initializeMedia();
+    initializeWebRTC();
 
     // Cleanup on unmount
     return () => {
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
+      if (webrtcService.current) {
+        webrtcService.current.destroy();
       }
     };
-  }, [initialStream]);
+  }, [roomId]);
 
   // Load appointment details
   useEffect(() => {
@@ -116,22 +155,18 @@ const VideoSession = () => {
   }, [appointmentId, initialAppointment]);
 
   const toggleCamera = () => {
-    if (localStream) {
-      const videoTrack = localStream.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        setCameraEnabled(videoTrack.enabled);
-      }
+    const newCameraState = !cameraEnabled;
+    setCameraEnabled(newCameraState);
+    if (webrtcService.current) {
+      webrtcService.current.toggleVideo(newCameraState);
     }
   };
 
   const toggleMic = () => {
-    if (localStream) {
-      const audioTrack = localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        setMicEnabled(audioTrack.enabled);
-      }
+    const newMicState = !micEnabled;
+    setMicEnabled(newMicState);
+    if (webrtcService.current) {
+      webrtcService.current.toggleAudio(newMicState);
     }
   };
 
@@ -142,9 +177,9 @@ const VideoSession = () => {
         await appointmentAPI.update(appointmentId, { status: 'completed' });
       }
       
-      // Stop media streams
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
+      // Leave WebRTC room and cleanup
+      if (webrtcService.current) {
+        await webrtcService.current.leaveRoom();
       }
       
       setIsSessionActive(false);
@@ -243,20 +278,50 @@ const VideoSession = () => {
           )}
         </div>
 
-        {/* Patient Video Placeholder */}
+        {/* Remote Video Streams */}
         <div className="w-1/3 bg-gray-800 relative border-l border-gray-700">
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center text-gray-400">
-              <Users className="h-16 w-16 mx-auto mb-4" />
-              <p className="text-lg mb-2">Waiting for patient</p>
-              <p className="text-sm">Patient will appear here when they join</p>
+          {remoteStreams.size > 0 ? (
+            <div className="grid grid-cols-1 gap-2 p-2 h-full">
+              {Array.from(remoteStreams.entries()).map(([userId, stream], index) => (
+                <div key={userId} className="relative bg-black rounded-lg overflow-hidden">
+                  <video
+                    ref={(el) => {
+                      if (el) {
+                        remoteVideoRefs.current.set(userId, el);
+                        el.srcObject = stream;
+                      }
+                    }}
+                    autoPlay
+                    playsInline
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
+                    Participant {index + 1}
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-center text-gray-400">
+                <Users className="h-16 w-16 mx-auto mb-4" />
+                <p className="text-lg mb-2">
+                  {connectionStatus === 'connected' ? 'Waiting for patient' : 'Connecting...'}
+                </p>
+                <p className="text-sm">
+                  {connectionStatus === 'connected' 
+                    ? 'Patient will appear here when they join'
+                    : 'Establishing connection...'
+                  }
+                </p>
+              </div>
+            </div>
+          )}
           
-          {/* Patient label */}
-          <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-md">
+          {/* Connection status */}
+          <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-md">
             <span className="text-sm font-medium">
-              {appointment?.patientName || 'Patient'}
+              {connectionStatus === 'connected' ? 'Connected' : 'Connecting...'}
             </span>
           </div>
         </div>

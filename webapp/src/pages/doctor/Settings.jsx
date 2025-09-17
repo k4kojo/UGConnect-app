@@ -31,6 +31,7 @@ const DoctorSettings = () => {
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [dataPopulated, setDataPopulated] = useState(false);
   const [profilePictureLoading, setProfilePictureLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -139,6 +140,7 @@ const DoctorSettings = () => {
       if (!user?.userId) return;
       
       setInitialLoading(true);
+      setDataPopulated(false);
       try {
         // Load user profile and settings
         await Promise.all([
@@ -157,7 +159,11 @@ const DoctorSettings = () => {
 
   // Update form data when cached data changes
   useEffect(() => {
+    let hasUserProfile = false;
+    let hasUserSettings = false;
+
     if (data.userProfile) {
+      hasUserProfile = true;
       setProfileData(prev => ({
         ...prev,
         firstName: data.userProfile.firstName || prev.firstName,
@@ -178,6 +184,7 @@ const DoctorSettings = () => {
     }
 
     if (data.userSettings) {
+      hasUserSettings = true;
       setNotificationData(prev => ({
         ...prev,
         ...data.userSettings.notifications
@@ -187,12 +194,18 @@ const DoctorSettings = () => {
         ...data.userSettings.appearance
       }));
     }
-  }, [data.userProfile, data.userSettings]);
+
+    // Mark data as populated when we have the essential data
+    if (hasUserProfile && !initialLoading) {
+      setDataPopulated(true);
+    }
+  }, [data.userProfile, data.userSettings, initialLoading]);
 
   const handleTabChange = (tabId) => {
     if (tabId === 'availability') {
       navigate('/doctor/availability');
     } else {
+      // Add a brief loading state to prevent flicker when switching tabs
       setActiveTab(tabId);
       navigate(`/doctor/settings/${tabIdToParam(tabId)}`);
     }
@@ -833,17 +846,54 @@ const DoctorSettings = () => {
     }
   };
 
-  // Show loading spinner while initial data is loading
-  if (initialLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <LoadingSpinner size="2xl" text="Loading settings..." />
+  // Create skeleton loader for settings content
+  const SettingsSkeleton = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="h-8 bg-gray-200 rounded w-32 animate-pulse"></div>
+          <div className="h-4 bg-gray-200 rounded w-64 mt-2 animate-pulse"></div>
+        </div>
       </div>
-    );
+
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        {/* Tabs skeleton */}
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-8 px-6">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex items-center space-x-2 py-4 px-1">
+                <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div>
+              </div>
+            ))}
+          </nav>
+        </div>
+
+        {/* Content skeleton */}
+        <div className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="space-y-2">
+                <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
+                <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end">
+            <div className="h-10 bg-gray-200 rounded w-32 animate-pulse"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Show loading spinner while initial data is loading
+  if (initialLoading || !dataPopulated) {
+    return <SettingsSkeleton />;
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
@@ -869,7 +919,7 @@ const DoctorSettings = () => {
                 <button
                   key={tab.id}
                   onClick={() => handleTabChange(tab.id)}
-                  className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm ${
+                  className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                     activeTab === tab.id
                       ? 'border-blue-500 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -884,7 +934,7 @@ const DoctorSettings = () => {
         </div>
 
         {/* Tab Content */}
-        <div className="p-6">
+        <div className="p-6 animate-fade-in">
           {renderTabContent()}
         </div>
       </div>

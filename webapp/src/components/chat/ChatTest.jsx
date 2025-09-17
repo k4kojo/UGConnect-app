@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
+import firebaseAuthService from '../../services/firebaseAuthService';
 import { createPatientDoctorChat, sendTextMessage } from '../../services/firebaseChatService';
 import { Button } from '../ui';
 
@@ -11,6 +12,19 @@ const ChatTest = () => {
 
   const createTestRoom = async () => {
     try {
+      // First authenticate with Firebase if not already authenticated
+      if (!firebaseAuthService.isFirebaseAuthenticated()) {
+        toast.loading('Authenticating with Firebase...');
+        const authResult = await firebaseAuthService.authenticateWithBackend(user);
+        toast.dismiss();
+        
+        if (!authResult.success) {
+          toast.error(`Firebase authentication failed: ${authResult.error}`);
+          return;
+        }
+        toast.success('Firebase authentication successful');
+      }
+
       // Create a test chat room between a test patient and current doctor
       const testPatientId = 'test_patient_123';
       const roomId = await createPatientDoctorChat(testPatientId, user.userId);
@@ -18,7 +32,7 @@ const ChatTest = () => {
       toast.success(`Test room created: ${roomId}`);
     } catch (error) {
       console.error('Error creating test room:', error);
-      toast.error('Failed to create test room');
+      toast.error(`Failed to create test room: ${error.message}`);
     }
   };
 
@@ -29,11 +43,17 @@ const ChatTest = () => {
     }
 
     try {
+      // Ensure Firebase authentication
+      if (!firebaseAuthService.isFirebaseAuthenticated()) {
+        toast.error('Please authenticate with Firebase first');
+        return;
+      }
+
       await sendTextMessage(testRoomId, user.userId, testMessage);
       toast.success('Test message sent!');
     } catch (error) {
       console.error('Error sending test message:', error);
-      toast.error('Failed to send test message');
+      toast.error(`Failed to send test message: ${error.message}`);
     }
   };
 

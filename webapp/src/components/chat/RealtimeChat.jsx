@@ -15,6 +15,7 @@ import {
 import React, { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
+import firebaseAuthService from '../../services/firebaseAuthService';
 import {
   getChatRoomMeta,
   getDoctorChatRooms,
@@ -37,41 +38,69 @@ const RealtimeChat = () => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [roomCreatedAt, setRoomCreatedAt] = useState(null);
+  const [firebaseAuthenticated, setFirebaseAuthenticated] = useState(false);
+  const [authError, setAuthError] = useState(null);
   const unsubscribeRef = useRef(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Load chat rooms based on user role
+  // Authenticate with Firebase and load chat rooms
   useEffect(() => {
-    const loadChatRooms = async () => {
+    const initializeChat = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
-        let rooms = [];
-        
-        if (user?.role === 'doctor') {
-          // Doctors see their conversations with patients
-          rooms = await getDoctorChatRooms(user.userId);
-        } else if (user?.role === 'admin') {
+        setAuthError(null);
+
+        // First, authenticate with Firebase if user is a doctor
+        if (user.role === 'doctor') {
+          console.log('Authenticating doctor with Firebase...');
+          const authResult = await firebaseAuthService.authenticateWithBackend(user);
+          
+          if (!authResult.success) {
+            setAuthError(authResult.error);
+            toast.error(`Firebase authentication failed: ${authResult.error}`);
+            setFirebaseAuthenticated(false);
+            setChatRooms([]);
+            return;
+          }
+          
+          setFirebaseAuthenticated(true);
+          console.log('Firebase authentication successful');
+
+          // Now load chat rooms
+          console.log('Loading doctor chat rooms...');
+          const rooms = await getDoctorChatRooms(user.userId);
+          console.log('Chat rooms loaded:', rooms.length);
+          setChatRooms(rooms);
+          
+        } else if (user.role === 'admin') {
           // Admins see limited chat information (no actual messages)
           // For now, show empty state - admins shouldn't access patient-doctor chats
-          rooms = [];
+          setChatRooms([]);
+          setFirebaseAuthenticated(false);
         } else {
           // Fallback - should not happen in webapp
-          rooms = [];
+          setChatRooms([]);
+          setFirebaseAuthenticated(false);
         }
         
-        setChatRooms(rooms);
       } catch (error) {
-        console.error('Error loading chat rooms:', error);
-        toast.error('Failed to load chat rooms');
+        console.error('Error initializing chat:', error);
+        setAuthError(error.message);
+        toast.error(`Failed to load chats: ${error.message}`);
+        setChatRooms([]);
+        setFirebaseAuthenticated(false);
       } finally {
         setLoading(false);
       }
     };
 
-    if (user) {
-      loadChatRooms();
-    }
+    initializeChat();
   }, [user]);
 
   // Subscribe to messages when a room is selected
@@ -261,10 +290,37 @@ const RealtimeChat = () => {
 
         {/* Chat Rooms List */}
         <div className="flex-1 overflow-y-auto">
-          {filteredRooms.length === 0 ? (
+          {loading ? (
+            <div className="p-4 text-center">
+              <LoadingSpinner size="md" text="Loading chats..." />
+            </div>
+          ) : authError ? (
+            <div className="p-4 text-center text-red-500">
+              <MessageSquare className="mx-auto h-8 w-8 mb-2" />
+              <p className="font-medium">Authentication Error</p>
+              <p className="text-sm mt-1">{authError}</p>
+              <Button 
+                size="sm" 
+                className="mt-3"
+                onClick={() => window.location.reload()}
+              >
+                Retry
+              </Button>
+            </div>
+          ) : filteredRooms.length === 0 ? (
             <div className="p-4 text-center text-gray-500">
               <MessageSquare className="mx-auto h-8 w-8 mb-2" />
-              <p>No conversations found</p>
+              {firebaseAuthenticated ? (
+                <div>
+                  <p>No conversations found</p>
+                  <p className="text-sm mt-1">Start chatting with patients to see conversations here</p>
+                </div>
+              ) : (
+                <div>
+                  <p>Unable to load conversations</p>
+                  <p className="text-sm mt-1">Firebase authentication required</p>
+                </div>
+              )}
             </div>
           ) : (
             filteredRooms.map((room) => (

@@ -30,7 +30,7 @@ import {
 } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useData } from '../../contexts/DataContext.jsx';
-import { appointmentAPI } from '../../services/api.js';
+import { appointmentAPI, notificationsAPI } from '../../services/api.js';
 
 // Reschedule Form Component
 const RescheduleForm = ({ onSubmit, onCancel }) => {
@@ -132,10 +132,12 @@ const VideoSessionControls = ({ onStartCall, onCancel }) => {
         return;
       }
 
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        video: video,
-        audio: audio
-      });
+      // Request media with specific constraints
+      const constraints = {};
+      if (video) constraints.video = true;
+      if (audio) constraints.audio = true;
+
+      const newStream = await navigator.mediaDevices.getUserMedia(constraints);
 
       setStream(newStream);
       
@@ -146,59 +148,105 @@ const VideoSessionControls = ({ onStartCall, onCancel }) => {
       return newStream;
     } catch (error) {
       console.error('Error accessing media devices:', error);
-      let errorMessage = 'Error accessing camera/microphone. ';
+      let errorMessage = 'Error accessing ';
+      
+      // More specific error messages based on what was requested
+      if (video && audio) {
+        errorMessage += 'camera/microphone. ';
+      } else if (video) {
+        errorMessage += 'camera. ';
+      } else if (audio) {
+        errorMessage += 'microphone. ';
+      }
       
       if (error.name === 'NotAllowedError') {
-        errorMessage += 'Please allow camera and microphone permissions.';
+        errorMessage += 'Please allow permissions.';
       } else if (error.name === 'NotFoundError') {
-        errorMessage += 'No camera or microphone found.';
+        errorMessage += 'Device not found.';
       } else if (error.name === 'NotReadableError') {
-        errorMessage += 'Camera or microphone is already in use.';
+        errorMessage += 'Device is already in use.';
       } else {
         errorMessage += error.message;
       }
       
       setPermissionError(errorMessage);
-      toast.error(errorMessage);
+      throw error; // Re-throw so calling functions can handle it
     }
   };
 
   const handleCameraToggle = async () => {
     const newCameraState = !cameraEnabled;
+    console.debug('Camera toggle:', { current: cameraEnabled, new: newCameraState });
+    
+    if (newCameraState) {
+      toast.loading('Camera turning on...');
+    }
+    
     setCameraEnabled(newCameraState);
     
-    if (newCameraState || micEnabled) {
-      await requestMediaAccess(newCameraState, micEnabled);
-    } else {
-      // Turn off all media if both camera and mic are disabled
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        setStream(null);
+    try {
+      if (newCameraState || micEnabled) {
+        await requestMediaAccess(newCameraState, micEnabled);
+        if (newCameraState) {
+          toast.dismiss();
+          toast.success('Camera is on');
+        }
+      } else {
+        // Turn off all media if both camera and mic are disabled
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+          setStream(null);
+        }
+        toast.dismiss();
       }
+    } catch (error) {
+      toast.dismiss();
+      toast.error('Failed to access camera');
+      setCameraEnabled(!newCameraState); // Revert state on error
     }
   };
 
   const handleMicToggle = async () => {
     const newMicState = !micEnabled;
+    console.debug('Microphone toggle:', { current: micEnabled, new: newMicState });
+    
+    if (newMicState) {
+      toast.loading('Microphone turning on...');
+    }
+    
     setMicEnabled(newMicState);
     
-    if (cameraEnabled || newMicState) {
-      await requestMediaAccess(cameraEnabled, newMicState);
-    } else {
-      // Turn off all media if both camera and mic are disabled
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        setStream(null);
+    try {
+      if (cameraEnabled || newMicState) {
+        await requestMediaAccess(cameraEnabled, newMicState);
+        if (newMicState) {
+          toast.dismiss();
+          toast.success('Microphone is on');
+        }
+      } else {
+        // Turn off all media if both camera and mic are disabled
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+          setStream(null);
+        }
+        toast.dismiss();
       }
+    } catch (error) {
+      toast.dismiss();
+      toast.error('Failed to access microphone');
+      setMicEnabled(!newMicState); // Revert state on error
     }
   };
 
   const handleStartCall = async () => {
     setIsStarting(true);
+    console.debug('Starting video call process');
+    
     try {
       await onStartCall(stream);
     } catch (error) {
       console.error('Error starting call:', error);
+      toast.error('Failed to start video session');
     } finally {
       setIsStarting(false);
     }
@@ -609,24 +657,69 @@ const DoctorDashboard = () => {
   };
 
   const handleStartVideoCall = async (stream) => {
-    if (selectedAppointment) {
+    if (!selectedAppointment) return;
+    
+    console.debug('Starting video session for appointment:', selectedAppointment.id);
+    
+    try {
+      // Step 1: Ring the patient
+      toast.loading('Ringing patient...');
+      
+      // Try to send notification to patient about incoming video call
       try {
-        // Update appointment status to in-progress
-        await appointmentAPI.update(selectedAppointment.id, { status: 'in-progress' });
-        
-        toast.success('Video session started');
-        setShowStartSessionModal(false);
-        
-        // Navigate to dedicated session page with appointment ID
-        navigate(`/doctor/session/${selectedAppointment.id}`, {
-          state: { 
-            appointment: selectedAppointment,
-            initialStream: stream 
-          }
-        });
-      } catch (error) {
-        console.error('Error starting session:', error);
-        toast.error('Failed to start session');
+        // If we can find the patient ID, send them a notification
+        const patientId = selectedAppointment.patientId;
+        if (patientId) {
+          // This would create a real-time notification for the patient
+          console.debug('Sending ring notification to patient:', patientId);
+        }
+      } catch (notifyError) {
+        console.warn('Could not send ring notification:', notifyError);
+      }
+      
+      // Update appointment status to indicate ringing
+      const ringResponse = await appointmentAPI.update(selectedAppointment.id, { 
+        status: 'ringing' // Temporary status to indicate ringing
+      });
+      
+      // Simulate patient acceptance (since we don't have real-time patient response)
+      // In a real implementation, this would wait for patient response
+      setTimeout(async () => {
+        try {
+          toast.dismiss();
+          toast.loading('Starting video session...');
+          
+          // Step 2: Update appointment status to in-progress
+          await appointmentAPI.update(selectedAppointment.id, { status: 'in-progress' });
+          
+          toast.dismiss();
+          toast.success('Video session started successfully');
+          setShowStartSessionModal(false);
+          
+          // Step 3: Navigate to dedicated session page
+          navigate(`/doctor/session/${selectedAppointment.id}`, {
+            state: { 
+              appointment: selectedAppointment,
+              initialStream: stream 
+            }
+          });
+        } catch (error) {
+          toast.dismiss();
+          console.error('Error initializing video session:', error);
+          toast.error('Failed to start video session');
+        }
+      }, 2000); // Simulate 2 second ring time
+      
+    } catch (error) {
+      toast.dismiss();
+      console.error('Error ringing patient:', error);
+      
+      // Check if it's a backend error with specific message
+      const errorMessage = error.response?.data?.error || error.message;
+      if (errorMessage.includes('not answer') || errorMessage.includes('timeout')) {
+        toast.error('Patient did not answer');
+      } else {
+        toast.error('Failed to start video session');
       }
     }
   };

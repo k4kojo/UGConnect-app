@@ -12,6 +12,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { useThemeContext } from "@/context/ThemeContext";
 import { prefetchInitialData, useAppDispatch, useAppSelector } from "@/redux/store";
 import { useAppointments, useDoctors, usePatientProfile } from "@/hooks/useCache";
+import { userService } from "@/services/userService";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -100,7 +101,6 @@ const Dashboard = () => {
 
   const loadStoredUser = async () => {
     try {
-      const { userService } = await import("@/services");
       const user = await userService.getStoredUser();
       if (user) {
         const fullName = user.firstName;

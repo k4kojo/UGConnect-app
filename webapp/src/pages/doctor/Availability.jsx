@@ -120,6 +120,8 @@ const Availability = () => {
         if (result) {
           toast.success('Availability updated successfully');
           setShowEditModal(false);
+          // Refresh the availability data to show the updated slot
+          fetchDoctorAvailability(true);
         } else {
           toast.error('Failed to update availability');
         }
@@ -129,6 +131,8 @@ const Availability = () => {
         if (result) {
           toast.success('Availability added successfully');
           setShowAddModal(false);
+          // Refresh the availability data to show the new slot
+          fetchDoctorAvailability(true);
         } else {
           toast.error('Failed to add availability');
         }

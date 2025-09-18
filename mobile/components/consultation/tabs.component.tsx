@@ -40,7 +40,7 @@ const Tabs = ({ TABS, tab, setTab }: TabsProps) => {
       >
         {TABS.map((t, i) => (
           <TouchableOpacity
-            key={t.label}
+            key={`tab-${i}-${t.label}`}
             style={[
               styles.tabBtn,
               tab === i && { backgroundColor: Colors.brand.primary },

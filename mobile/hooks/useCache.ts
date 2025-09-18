@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { appointmentService, chatService, notificationService, userService, medicalRecordsService } from '../services';
+import { appointmentService, chatService, notificationService, userService, medicalRecordsService, medicationService } from '../services';
 import { CACHE_KEYS, CACHE_TTL, cacheService } from '../services/cacheService';
 
 interface UseCacheOptions<T> {
@@ -198,6 +198,93 @@ export function useLabResults() {
     },
     ttl: CACHE_TTL.LONG,
     autoRefresh: false,
+  });
+}
+
+// Medication-related hooks
+export function useMedications() {
+  return useCache({
+    key: CACHE_KEYS.MEDICATIONS,
+    fetchFn: async () => {
+      // Fetch all medications (both active and inactive) to support filtering
+      return medicationService.getMyMedications();
+    },
+    ttl: CACHE_TTL.MEDIUM,
+    autoRefresh: true,
+    refreshInterval: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+export function useMedicationDetails(medicationId: string) {
+  return useCache({
+    key: CACHE_KEYS.MEDICATION_DETAILS(medicationId),
+    fetchFn: async () => {
+      const response = await medicationService.getMedicationById(medicationId);
+      return response.data;
+    },
+    ttl: CACHE_TTL.MEDIUM,
+    autoRefresh: false,
+  });
+}
+
+export function useMedicationLogs(medicationId: string, params?: { status?: 'taken' | 'skipped' | 'missed'; days?: number }) {
+  const cacheKey = `${CACHE_KEYS.MEDICATION_LOGS(medicationId)}_${JSON.stringify(params || {})}`;
+  
+  return useCache({
+    key: cacheKey,
+    fetchFn: async () => {
+      const queryParams: any = { limit: 50 };
+      if (params?.status) queryParams.status = params.status;
+      if (params?.days) {
+        const endDate = new Date();
+        const startDate = new Date(endDate.getTime() - params.days * 24 * 60 * 60 * 1000);
+        queryParams.startDate = startDate.toISOString();
+        queryParams.endDate = endDate.toISOString();
+      }
+      
+      const response = await medicationService.getMedicationLogs(medicationId, queryParams);
+      return response.data.medications || [];
+    },
+    ttl: CACHE_TTL.SHORT,
+    autoRefresh: true,
+    refreshInterval: 2 * 60 * 1000, // 2 minutes
+  });
+}
+
+export function useMedicationAdherence(medicationId: string, days: number = 30) {
+  return useCache({
+    key: `${CACHE_KEYS.MEDICATION_ADHERENCE(medicationId)}_${days}`,
+    fetchFn: async () => {
+      const response = await medicationService.getMedicationAdherence(medicationId, days);
+      return response.data;
+    },
+    ttl: CACHE_TTL.MEDIUM,
+    autoRefresh: true,
+    refreshInterval: 10 * 60 * 1000, // 10 minutes
+  });
+}
+
+export function useUpcomingReminders() {
+  return useCache({
+    key: CACHE_KEYS.UPCOMING_REMINDERS,
+    fetchFn: async () => {
+      return medicationService.getUpcomingReminders();
+    },
+    ttl: CACHE_TTL.SHORT,
+    autoRefresh: true,
+    refreshInterval: 1 * 60 * 1000, // 1 minute
+  });
+}
+
+export function useOverallAdherence(days: number = 30) {
+  return useCache({
+    key: `${CACHE_KEYS.OVERALL_ADHERENCE}_${days}`,
+    fetchFn: async () => {
+      return medicationService.getOverallAdherence(days);
+    },
+    ttl: CACHE_TTL.MEDIUM,
+    autoRefresh: true,
+    refreshInterval: 10 * 60 * 1000, // 10 minutes
   });
 }
 

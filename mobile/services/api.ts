@@ -3,11 +3,11 @@ import axios from "axios";
 import { createCacheInterceptor } from "./cacheInterceptor";
 
 // TIP: Update this IP to your machine's LAN IP when testing on device
-export const API_BASE_URL = "http://10.11.24.130:5500";
+export const API_BASE_URL = "http://172.20.10.2:5500";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000, // 10 second timeout
+  timeout: 30000, // 30 second timeout for debugging
   headers: {
     "Content-Type": "application/json",
   },
@@ -20,8 +20,13 @@ const cacheInterceptor = createCacheInterceptor();
 api.interceptors.request.use(
   async (config) => {
     const token = await AsyncStorage.getItem("authToken");
+    console.log('API Request:', config.method?.toUpperCase(), config.url);
+    console.log('Auth token present:', !!token);
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      console.warn('No auth token found in AsyncStorage');
     }
     
     // Apply cache interceptor request logic

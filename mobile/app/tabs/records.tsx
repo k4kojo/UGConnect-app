@@ -222,10 +222,11 @@ const Records = () => {
 
   const filteredRecords = useMemo(() => {
     if (!searchQuery) return recordItems;
+    const query = searchQuery.toLowerCase();
     return recordItems.filter(
       (item) =>
-        item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.date && item.date.toLowerCase().includes(searchQuery.toLowerCase()))
+        (item.title && item.title.toLowerCase().includes(query)) ||
+        (item.date && item.date.toLowerCase().includes(query))
     );
   }, [recordItems, searchQuery]);
 

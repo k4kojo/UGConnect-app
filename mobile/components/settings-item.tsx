@@ -54,6 +54,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderBottomWidth: 1,
     marginVertical: 8,
+    marginHorizontal: 10,
     borderRadius: 8,
   },
   iconWrapper: {

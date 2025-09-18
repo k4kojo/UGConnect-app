@@ -195,6 +195,7 @@ export default function ProfileScreen() {
             tintColor={themeColors.text}
           />
         }
+        showsVerticalScrollIndicator={false}
       >
       {/* Header */}
       <View style={styles.headerContainer}>

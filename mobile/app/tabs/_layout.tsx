@@ -78,6 +78,19 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="medications"
+        options={{
+          title: "",
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons
+              name={focused ? "medical" : "medical-outline"}
+              size={22}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: "",

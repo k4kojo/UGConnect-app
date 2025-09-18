@@ -4,7 +4,7 @@ import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 type Props = {
-  screen?: "home" | "appointments" | "consult" | "records" | "profile";
+  screen?: "home" | "appointments" | "consult" | "records" | "medications" | "profile";
   onLeftPress?: () => void;
   onRightPress?: () => void;
   unreadCount?: number;

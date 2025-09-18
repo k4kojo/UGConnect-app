@@ -57,6 +57,7 @@ const ScheduleAppointment = () => {
 			doctorsList.filter((doc) => {
 				const name = `${doc.firstName ?? ""} ${doc.lastName ?? ""}`.trim();
 				const specialty = doc.specialization ?? "";
+				if (!searchQuery) return true;
 				const q = searchQuery.toLowerCase();
 				return name.toLowerCase().includes(q) || specialty.toLowerCase().includes(q);
 			}),

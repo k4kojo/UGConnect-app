@@ -116,7 +116,7 @@ const HealthTips = () => {
       <FlatList
         data={tips}
         renderItem={renderTip}
-        keyExtractor={(_, index) => index.toString()}
+        keyExtractor={(item, index) => `tip-${index}-${item.title?.substring(0, 10) || 'tip'}`}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}

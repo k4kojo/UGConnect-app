@@ -222,7 +222,7 @@ const ConsultationInfo = ({ tab, consultationId }: ConsultationInfoProps) => {
             <Text style={[styles.sectionValue, { color: themeColors.subText }]}>Unable to load prescriptions</Text>
           ) : prescriptions.length > 0 ? (
             prescriptions.map((prescription, index) => (
-              <View key={prescription.prescriptionId} style={{ marginBottom: 12 }}>
+              <View key={`prescription-${prescription.prescriptionId || index}`} style={{ marginBottom: 12 }}>
                 <Text style={[styles.prescriptionName, { color: themeColors.text }]}>
                   {prescription.medicationName}
                 </Text>
@@ -263,7 +263,7 @@ const ConsultationInfo = ({ tab, consultationId }: ConsultationInfoProps) => {
             <Text style={[styles.sectionValue, { color: themeColors.subText }]}>Unable to load lab results</Text>
           ) : labResults.length > 0 ? (
             labResults.map((result, index) => (
-              <View key={result.labResultId} style={{ marginBottom: 12 }}>
+              <View key={`lab-result-${result.labResultId || index}`} style={{ marginBottom: 12 }}>
                 <Text style={[styles.labTestName, { color: themeColors.text }]}>
                   {result.testName}
                 </Text>

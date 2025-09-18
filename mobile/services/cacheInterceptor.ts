@@ -41,6 +41,16 @@ const CACHE_INVALIDATION_RULES = {
   // Reviews
   'POST:/api/v0/user-feedbacks': ['reviews'],
   'PUT:/api/v0/user-feedbacks': ['reviews'],
+  
+  // Medications
+  'POST:/api/v0/medications': ['medications', 'upcoming_reminders', 'overall_adherence'],
+  'PUT:/api/v0/medications/*': ['medications', 'medication_*', 'upcoming_reminders', 'overall_adherence'],
+  'DELETE:/api/v0/medications/*': ['medications', 'medication_*', 'upcoming_reminders', 'overall_adherence'],
+  
+  // Medication logs
+  'POST:/api/v0/medications/*/logs': ['medication_logs_*', 'medication_adherence_*', 'overall_adherence'],
+  'PUT:/api/v0/medications/*/logs/*': ['medication_logs_*', 'medication_adherence_*', 'overall_adherence'],
+  'DELETE:/api/v0/medications/*/logs/*': ['medication_logs_*', 'medication_adherence_*', 'overall_adherence'],
 } as const;
 
 // Helper function to check if a path matches a pattern with wildcards

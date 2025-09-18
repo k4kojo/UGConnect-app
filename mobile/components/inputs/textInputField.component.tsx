@@ -38,8 +38,10 @@ export default function TextInputField({
   };
 
   const getKeyboardType = (): KeyboardTypeOptions => {
-    if (placeholder.toLowerCase().includes("email")) return "email-address";
-    if (placeholder.toLowerCase().includes("phone")) return "phone-pad";
+    if (!placeholder) return "default";
+    const lowerPlaceholder = placeholder.toLowerCase();
+    if (lowerPlaceholder.includes("email")) return "email-address";
+    if (lowerPlaceholder.includes("phone")) return "phone-pad";
     return "default";
   };
 

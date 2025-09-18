@@ -37,7 +37,7 @@ const DoctorCard = ({
   const themeColors = Colors[theme];
   const brand = Colors.brand;
 
-  const t = (type || "").toLowerCase();
+  const t = type ? type.toLowerCase() : "";
   const isVideo = t.includes("video");
   const typeLabel = isVideo ? "Video Call" : "In-Person";
   const typeIcon = isVideo ? "videocam-outline" : "person-outline";

@@ -37,6 +37,7 @@ type DoctorItem = {
 const ScheduleAppointment = () => {
 	const { theme } = useThemeContext();
 	const themeColors = Colors[theme];
+	const brandColors = Colors.brand;
 	const { t } = useLanguage();
 
 	const [searchQuery, setSearchQuery] = useState("");
@@ -145,7 +146,7 @@ const ScheduleAppointment = () => {
                   lastName={item.lastName || "r"}
                   size={60}
                   border
-                  containerStyle={{ backgroundColor: Colors.brand.avatarBg, borderColor: Colors.brand.avatarBg }}
+                  containerStyle={{ backgroundColor: brandColors.primary + '15', borderColor: brandColors.primary + '30' }}
                   onPress={() =>
                     router.push({ pathname: "/doctor-profile", params: { doctorId: item.doctorId ?? "" } })
                   }

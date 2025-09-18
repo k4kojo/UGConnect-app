@@ -85,6 +85,13 @@ const MenuSection = ({ themeColors, brandColors, onLogout }: any) => (
     />
 
     <MenuButton
+      icon="chatbubbles-outline"
+      label="Chat Rooms"
+      onPress={() => router.push("/chat" as any)}
+      themeColors={themeColors}
+    />
+
+    <MenuButton
       icon="document-text-outline"
       label="Medical Records"
       onPress={() => router.push("/profile/medical-record")}

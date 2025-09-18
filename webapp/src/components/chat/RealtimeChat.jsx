@@ -10,13 +10,20 @@ import {
   Search,
   Send,
   Smile,
-  Video
+  Video,
+  Trash2,
+  UserX,
+  Flag,
+  Download,
+  Archive,
+  AlertTriangle
 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import firebaseAuthService from '../../services/firebaseAuthService';
 import {
+  deleteChatRoom,
   enrichChatRoomsWithPatientNames,
   getChatRoomMeta,
   getDoctorChatRooms,
@@ -42,9 +49,11 @@ const RealtimeChat = () => {
   const [roomCreatedAt, setRoomCreatedAt] = useState(null);
   const [firebaseAuthenticated, setFirebaseAuthenticated] = useState(false);
   const [authError, setAuthError] = useState(null);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const unsubscribeRef = useRef(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const moreMenuRef = useRef(null);
 
   // Authenticate with Firebase and load chat rooms
   useEffect(() => {
@@ -171,6 +180,31 @@ const RealtimeChat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Handle clicks outside the more menu to close it
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target)) {
+        setShowMoreMenu(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setShowMoreMenu(false);
+      }
+    };
+
+    if (showMoreMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showMoreMenu]);
+
   const handleSelectRoom = (room) => {
     setSelectedRoom(room);
   };
@@ -238,6 +272,129 @@ const RealtimeChat = () => {
       case 'read': return <CheckCheck className="h-3 w-3 text-blue-500" />;
       default: return null;
     }
+  };
+
+  // Menu action handlers
+  const handleExportChat = () => {
+    if (!selectedRoom || messages.length === 0) {
+      toast.error('No messages to export');
+      return;
+    }
+
+    try {
+      // Create chat export data
+      const chatData = {
+        roomId: selectedRoom.id,
+        patientName: selectedRoom.patientName || 'Unknown Patient',
+        doctorName: `Dr. ${user.firstName} ${user.lastName}`,
+        exportDate: new Date().toISOString(),
+        messageCount: messages.length,
+        messages: messages.map(msg => ({
+          sender: msg.sender.name,
+          content: msg.content,
+          timestamp: msg.timestamp.toISOString(),
+          type: msg.type
+        }))
+      };
+
+      // Create and download file
+      const blob = new Blob([JSON.stringify(chatData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `chat-export-${selectedRoom.patientName || selectedRoom.id}-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success('Chat exported successfully');
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export chat');
+    }
+    setShowMoreMenu(false);
+  };
+
+  const handleArchiveChat = () => {
+    if (!selectedRoom) {
+      toast.error('No chat selected');
+      return;
+    }
+    
+    // TODO: Implement actual archive functionality with backend
+    toast.success(`Chat with ${selectedRoom.patientName || 'patient'} archived`);
+    setShowMoreMenu(false);
+  };
+
+  const handleClearChat = () => {
+    if (!selectedRoom) {
+      toast.error('No chat selected');
+      return;
+    }
+
+    const patientName = selectedRoom.patientName || 'this patient';
+    if (window.confirm(`Are you sure you want to clear the chat with ${patientName}? This action cannot be undone.`)) {
+      // TODO: Implement actual clear chat functionality with backend
+      setMessages([]);
+      toast.success('Chat cleared successfully');
+    }
+    setShowMoreMenu(false);
+  };
+
+  const handleDeleteChatRoom = async () => {
+    if (!selectedRoom) {
+      toast.error('No chat selected');
+      return;
+    }
+
+    const patientName = selectedRoom.patientName || 'this patient';
+    const confirmMessage = `⚠️ DANGER: Delete entire chat room with ${patientName}?\n\nThis will permanently delete:\n• All messages in this conversation\n• The chat room itself\n• All chat history\n\nThis action CANNOT be undone!\n\nType "DELETE" to confirm:`;
+    
+    const userInput = window.prompt(confirmMessage);
+    
+    if (userInput !== 'DELETE') {
+      if (userInput !== null) { // User didn't cancel
+        toast.error('Chat room deletion cancelled - incorrect confirmation');
+      }
+      setShowMoreMenu(false);
+      return;
+    }
+
+    try {
+      // Show loading toast
+      const loadingToast = toast.loading(`Deleting chat room with ${patientName}...`);
+      
+      // Delete the chat room and all messages
+      await deleteChatRoom(selectedRoom.id);
+      
+      // Update UI
+      setChatRooms(prevRooms => prevRooms.filter(room => room.id !== selectedRoom.id));
+      setSelectedRoom(null);
+      setMessages([]);
+      
+      // Success feedback
+      toast.dismiss(loadingToast);
+      toast.success(`Chat room with ${patientName} deleted permanently`);
+      
+    } catch (error) {
+      console.error('Error deleting chat room:', error);
+      toast.error(`Failed to delete chat room: ${error.message}`);
+    }
+    
+    setShowMoreMenu(false);
+  };
+
+  const handleReportIssue = () => {
+    if (!selectedRoom) {
+      toast.error('No chat selected');
+      return;
+    }
+    
+    // TODO: Implement report issue functionality
+    const patientName = selectedRoom.patientName || 'Unknown Patient';
+    toast.info(`Report functionality for chat with ${patientName} will be implemented soon`);
+    setShowMoreMenu(false);
   };
 
   const filteredRooms = chatRooms.filter(room => {
@@ -422,11 +579,74 @@ const RealtimeChat = () => {
                 >
                   Video
                 </Button>
+                <div className="relative" ref={moreMenuRef}>
                 <Button
                   variant="outline"
                   size="sm"
                   icon={MoreVertical}
-                />
+                    onClick={() => setShowMoreMenu(!showMoreMenu)}
+                  />
+                  {showMoreMenu && (
+                    <div className="absolute right-0 mt-2 w-52 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50 animate-in fade-in-0 zoom-in-95">
+                      <div className="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
+                        Chat Actions
+                      </div>
+                      <button
+                        onClick={handleExportChat}
+                        disabled={!selectedRoom || messages.length === 0}
+                        className="flex items-center w-full px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Download className="h-4 w-4 mr-3" />
+                        <div className="text-left">
+                          <div className="font-medium">Export Chat</div>
+                        </div>
+                      </button>
+                      <button
+                        onClick={handleArchiveChat}
+                        disabled={!selectedRoom}
+                        className="flex items-center w-full px-4 py-3 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Archive className="h-4 w-4 mr-3" />
+                        <div className="text-left">
+                          <div className="font-medium">Archive Chat</div>
+                        </div>
+                      </button>
+                      <hr className="my-2 border-gray-200" />
+                      <button
+                        onClick={handleClearChat}
+                        disabled={!selectedRoom}
+                        className="flex items-center w-full px-4 py-3 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Trash2 className="h-4 w-4 mr-3" />
+                        <div className="text-left">
+                          <div className="font-medium">Clear Chat</div>
+                        </div>
+                      </button>
+                      <button
+                        onClick={handleDeleteChatRoom}
+                        disabled={!selectedRoom}
+                        className="flex items-center w-full px-4 py-3 text-sm text-red-700 hover:bg-red-100 hover:text-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-l-4 border-red-500"
+                      >
+                        <AlertTriangle className="h-4 w-4 mr-3" />
+                        <div className="text-left">
+                          <div className="font-medium">Delete Chat</div>
+                        </div>
+                      </button>
+                      <hr className="my-2 border-gray-200" />
+                      <button
+                        onClick={handleReportIssue}
+                        disabled={!selectedRoom}
+                        className="flex items-center w-full px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Flag className="h-4 w-4 mr-3" />
+                        <div className="text-left">
+                          <div className="font-medium">Report Issue</div>
+                          <div className="text-xs text-gray-500">Report a problem</div>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

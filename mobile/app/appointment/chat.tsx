@@ -42,14 +42,17 @@ import {
   subscribeToRoom,
   setTyping,
   updateTextMessage,
+  getPatientName,
 } from "@/firebase/chatService";
 import { ensureFirebaseAuth } from "@/services/authService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import videoCallService from "@/services/videoCallService";
+import Avatar from "@/components/avatar.component";
 
 type Message = {
   id: string;
   from: "user" | "doctor";
+  senderId: string; // Add senderId to track who sent the message
   text?: string;
   image?: string;
   audio?: string;
@@ -67,10 +70,16 @@ const ChatScreen = () => {
 
   const { theme } = useThemeContext();
   const themeColors = Colors[theme];
+  const brandColors = Colors.brand;
   const { t } = useLanguage();
-  const params = useLocalSearchParams<{ doctorId?: string; doctorName?: string }>();
+  const params = useLocalSearchParams<{ 
+    doctorId?: string; 
+    doctorName?: string;
+    appointmentId?: string;
+  }>();
   const doctorId = String(params.doctorId || "");
   const doctorName = String(params.doctorName || "Doctor");
+  const appointmentId = params.appointmentId;
   const [roomId, setRoomId] = useState<string | null>(null);
   const [myUserId, setMyUserId] = useState<string | null>(null);
   const unsubRef = useRef<ReturnType<typeof subscribeToMessages> | null>(null);
@@ -101,6 +110,7 @@ const ChatScreen = () => {
   const [showReactions, setShowReactions] = useState<string | null>(null);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const { width: screenWidth } = Dimensions.get('window');
+  const [patientNames, setPatientNames] = useState<Record<string, string>>({});
 
   const formatDuration = (ms: number) => {
     const totalSec = Math.floor(ms / 1000);
@@ -121,6 +131,20 @@ const ChatScreen = () => {
     if (diffDays === 0) return "Today";
     if (diffDays === 1) return "Yesterday";
     return date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+  };
+
+  // Get display name for message sender
+  const getSenderDisplayName = (msg: Message, senderId: string): string => {
+    if (msg.from === "user") {
+      return "You";
+    } else if (msg.from === "doctor") {
+      // If this is a patient message (not from current user or doctor), show patient name
+      if (senderId !== myUserId && senderId !== String(doctorId)) {
+        return patientNames[senderId] || `Patient ${senderId}`;
+      }
+      return doctorName;
+    }
+    return "Unknown";
   };
 
   // Init: load my user, ensure room, subscribe to messages
@@ -169,12 +193,41 @@ const ChatScreen = () => {
         // Subscribe
         unsubRef.current?.();
         console.log("Chat init: subscribing to messages for room", rid);
-        unsubRef.current = subscribeToMessages(rid, (fmsgs: FireMessage[]) => {
+        unsubRef.current = subscribeToMessages(rid, async (fmsgs: FireMessage[]) => {
           console.log("Chat messages snapshot:", fmsgs?.length ?? 0);
+          
+          // Collect unique patient IDs from messages
+          const patientIds = new Set<string>();
+          fmsgs.forEach((m) => {
+            if (m.senderId !== uid && m.senderId !== String(doctorId)) {
+              patientIds.add(m.senderId);
+            }
+          });
+
+          // Fetch patient names for any new patient IDs
+          const newPatientNames: Record<string, string> = {};
+          for (const patientId of patientIds) {
+            if (!patientNames[patientId]) {
+              try {
+                const name = await getPatientName(patientId);
+                newPatientNames[patientId] = name;
+              } catch (error) {
+                console.warn(`Failed to fetch name for patient ${patientId}:`, error);
+                newPatientNames[patientId] = `Patient ${patientId}`;
+              }
+            }
+          }
+
+          // Update patient names state if we have new names
+          if (Object.keys(newPatientNames).length > 0) {
+            setPatientNames(prev => ({ ...prev, ...newPatientNames }));
+          }
+
           setMessages((prev) => {
             const mapped: Message[] = fmsgs.map((m) => ({
               id: m.id,
               from: m.senderId === uid ? "user" : "doctor",
+              senderId: m.senderId, // Store the actual sender ID
               text: m.type === "text" ? m.content : undefined,
               image: m.type === "image" ? (m.imageUrl ?? undefined) : undefined,
               audio: m.type === "audio" ? (m.audioUrl ?? undefined) : undefined,
@@ -616,10 +669,13 @@ const ChatScreen = () => {
         
         <View style={styles.doctorInfo}>
           <View style={styles.avatarContainer}>
-            <Image
-              source={require("@/assets/images/doctor_1.jpg")}
-              style={styles.avatar}
-            />
+            <Avatar
+            imageUrl={undefined} 
+            fullName={doctorName} 
+            size={40} 
+            border
+            containerStyle={{ backgroundColor: brandColors.primary + '15', borderColor: brandColors.primary + '30' }}
+          />
             <View style={[styles.onlineIndicator, { backgroundColor: '#4CAF50' }]} />
           </View>
           
@@ -748,6 +804,16 @@ const ChatScreen = () => {
                       isLastInGroup && (isUser ? styles.lastUserBubble : styles.lastDoctorBubble)
                     ]}
                   >
+                    {/* Sender name for non-user messages */}
+                    {!isUser && showAvatar && (
+                      <Text style={[
+                        styles.senderName, 
+                        { color: themeColors.subText }
+                      ]}>
+                        {getSenderDisplayName(msg, msg.senderId)}
+                      </Text>
+                    )}
+                    
                     {msg.text && (
                       <Text style={[
                         styles.messageText, 
@@ -1185,6 +1251,12 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: 15,
     lineHeight: 20,
+  },
+  senderName: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 4,
+    opacity: 0.8,
   },
   // Reply Indicator Styles
   replyIndicator: {

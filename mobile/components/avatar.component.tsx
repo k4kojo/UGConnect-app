@@ -71,7 +71,7 @@ const Avatar: React.FC<AvatarProps> = ({
         containerStyle,
       ]}
     >
-      <Text style={[styles.initials, { color: "#555" }, textStyle]}>{initials}</Text>
+      <Text style={[styles.initials, { color: themeColors.text }, textStyle]}>{initials}</Text>
     </TouchableOpacity>
   );
 };

@@ -319,6 +319,31 @@ export const createPatientDoctorChat = async (patientId, doctorId) => {
   }
 };
 
+// Delete a chat room and all its messages
+export const deleteChatRoom = async (roomId) => {
+  try {
+    // First, delete all messages in the room
+    const messagesRef = collection(db, "chatRooms", roomId, "messages");
+    const messagesSnap = await getDocs(messagesRef);
+    
+    // Delete all messages
+    const deletePromises = messagesSnap.docs.map(messageDoc => 
+      deleteDoc(doc(db, "chatRooms", roomId, "messages", messageDoc.id))
+    );
+    await Promise.all(deletePromises);
+    
+    // Then delete the chat room itself
+    const roomRef = doc(db, "chatRooms", roomId);
+    await deleteDoc(roomRef);
+    
+    console.log(`Chat room ${roomId} and all messages deleted successfully`);
+    return true;
+  } catch (error) {
+    console.error('Error deleting chat room:', error);
+    throw error;
+  }
+};
+
 // Get chat room statistics for admin dashboard (no message content)
 export const getChatRoomStats = async () => {
   const roomsRef = collection(db, "chatRooms");

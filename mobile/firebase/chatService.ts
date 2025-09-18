@@ -19,6 +19,8 @@ import {
   where,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { patientService, PatientInfo } from "@/services/patientService";
+import { doctorService, DoctorInfo } from "@/services/doctorService";
 
 export type FireMessage = {
   id: string;
@@ -339,4 +341,152 @@ export const setTyping = async (
   const roomRef = doc(db, "chatRooms", roomId);
   const path = `typingBy.${userId}` as any;
   await updateDoc(roomRef, typing ? { [path]: serverTimestamp(), updatedAt: serverTimestamp() } : { [path]: deleteField(), updatedAt: serverTimestamp() });
+};
+
+// Enhanced chat room type with patient information
+export type EnrichedChatRoom = {
+  id: string;
+  patientId: string;
+  doctorId: string;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+  lastMessage: string | null;
+  patientName?: string;
+  patientEmail?: string;
+  patientPhone?: string;
+  doctorName?: string;
+  doctorEmail?: string;
+  doctorPhone?: string;
+};
+
+// Get all chat rooms for a doctor with patient names
+export const getChatRoomsForDoctor = async (doctorId: string): Promise<EnrichedChatRoom[]> => {
+  try {
+    const roomsRef = collection(db, "chatRooms");
+    const q = query(roomsRef, where("doctorId", "==", doctorId));
+    const snap = await getDocs(q);
+    
+    const rooms: any[] = [];
+    snap.forEach((doc) => {
+      const data = doc.data();
+      rooms.push({
+        id: doc.id,
+        patientId: data.patientId,
+        doctorId: data.doctorId,
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+        lastMessage: data.lastMessage,
+      });
+    });
+
+    // Enrich with patient names
+    return await enrichChatRoomsWithPatientNames(rooms);
+  } catch (error) {
+    console.error("Error fetching chat rooms for doctor:", error);
+    return [];
+  }
+};
+
+// Get all chat rooms for a patient with doctor names
+export const getChatRoomsForPatient = async (patientId: string): Promise<EnrichedChatRoom[]> => {
+  try {
+    const roomsRef = collection(db, "chatRooms");
+    const q = query(roomsRef, where("patientId", "==", patientId));
+    const snap = await getDocs(q);
+    
+    const rooms: any[] = [];
+    snap.forEach((doc) => {
+      const data = doc.data();
+      rooms.push({
+        id: doc.id,
+        patientId: data.patientId,
+        doctorId: data.doctorId,
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+        lastMessage: data.lastMessage,
+      });
+    });
+
+    // Enrich with doctor names
+    return await enrichChatRoomsWithDoctorNames(rooms);
+  } catch (error) {
+    console.error("Error fetching chat rooms for patient:", error);
+    return [];
+  }
+};
+
+// Enrich chat rooms with patient names (similar to webapp implementation)
+export const enrichChatRoomsWithPatientNames = async (rooms: any[]): Promise<EnrichedChatRoom[]> => {
+  const enrichedRooms = await Promise.all(
+    rooms.map(async (room) => {
+      try {
+        if (room.patientId) {
+          const patient = await patientService.getPatientById(room.patientId);
+          return {
+            ...room,
+            patientName: patient?.name || `Patient ${room.patientId}`,
+            patientEmail: patient?.email,
+            patientPhone: patient?.phoneNumber
+          };
+        }
+        return room;
+      } catch (error) {
+        console.warn(`Failed to fetch patient ${room.patientId}:`, error);
+        return {
+          ...room,
+          patientName: `Patient ${room.patientId}`
+        };
+      }
+    })
+  );
+  return enrichedRooms;
+};
+
+// Enrich chat rooms with doctor names (for patient view)
+export const enrichChatRoomsWithDoctorNames = async (rooms: any[]): Promise<EnrichedChatRoom[]> => {
+  const enrichedRooms = await Promise.all(
+    rooms.map(async (room) => {
+      try {
+        if (room.doctorId) {
+          const doctor = await doctorService.getDoctorById(room.doctorId);
+          return {
+            ...room,
+            doctorName: doctor?.name || `Doctor ${room.doctorId}`,
+            doctorEmail: doctor?.email,
+            doctorPhone: doctor?.phoneNumber
+          };
+        }
+        return room;
+      } catch (error) {
+        console.warn(`Failed to fetch doctor ${room.doctorId}:`, error);
+        return {
+          ...room,
+          doctorName: `Doctor ${room.doctorId}`
+        };
+      }
+    })
+  );
+  return enrichedRooms;
+};
+
+// Get patient name for a specific patient ID (utility function)
+export const getPatientName = async (patientId: string): Promise<string> => {
+  try {
+    const patient = await patientService.getPatientById(patientId);
+    return patient?.name || `Patient ${patientId}`;
+  } catch (error) {
+    console.warn(`Failed to fetch patient name for ${patientId}:`, error);
+    return `Patient ${patientId}`;
+  }
+};
+
+// Get doctor name for a specific doctor ID (utility function)
+export const getDoctorName = async (doctorId: string): Promise<string> => {
+  try {
+    const doctor = await doctorService.getDoctorById(doctorId);
+    return doctor?.name || `Doctor ${doctorId}`;
+  } catch (error) {
+    console.warn(`Failed to fetch doctor name for ${doctorId}:`, error);
+    return `Doctor ${doctorId}`;
+  }
 };

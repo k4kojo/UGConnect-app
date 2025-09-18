@@ -17,6 +17,7 @@ import { toast } from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import firebaseAuthService from '../../services/firebaseAuthService';
 import {
+  enrichChatRoomsWithPatientNames,
   getChatRoomMeta,
   getDoctorChatRooms,
   markMessagesDelivered,
@@ -26,6 +27,7 @@ import {
   sendTextMessage,
   subscribeToMessages
 } from '../../services/firebaseChatService';
+import { patientsService } from '../../services/patientsService';
 import { Button, LoadingSpinner, ProfileAvatar } from '../ui';
 
 const RealtimeChat = () => {
@@ -76,7 +78,12 @@ const RealtimeChat = () => {
           console.log('Loading doctor chat rooms...');
           const rooms = await getDoctorChatRooms(user.userId);
           console.log('Chat rooms loaded:', rooms.length);
-          setChatRooms(rooms);
+          
+          // Enrich rooms with patient names
+          console.log('Fetching patient names...');
+          const enrichedRooms = await enrichChatRoomsWithPatientNames(rooms, patientsService);
+          console.log('Patient names loaded:', enrichedRooms);
+          setChatRooms(enrichedRooms);
           
         } else if (user.role === 'admin') {
           // Admins see limited chat information (no actual messages)
@@ -113,23 +120,31 @@ const RealtimeChat = () => {
 
       // Subscribe to new room
       unsubscribeRef.current = subscribeToMessages(selectedRoom.id, (firebaseMessages) => {
-        const formattedMessages = firebaseMessages.map(msg => ({
-          id: msg.id,
-          sender: {
-            id: msg.senderId,
-            name: msg.senderId === user.userId ? `${user.firstName} ${user.lastName}` : 'Other User',
-            role: msg.senderId === user.userId ? user.role : 'other'
-          },
-          content: msg.content,
-          type: msg.type,
-          imageUrl: msg.imageUrl,
-          fileUrl: msg.fileUrl,
-          fileName: msg.fileName,
-          timestamp: msg.createdAt?.toDate?.() || new Date(),
-          status: msg.senderId === user.userId
-            ? (msg.isRead ? 'read' : msg.delivered ? 'delivered' : 'sent')
-            : 'received'
-        }));
+        const formattedMessages = firebaseMessages.map(msg => {
+          const isFromDoctor = msg.senderId === user.userId;
+          const senderName = isFromDoctor 
+            ? `Dr. ${user.firstName} ${user.lastName}` 
+            : selectedRoom.patientName || `Patient ${selectedRoom.patientId || 'Unknown'}`;
+          
+          return {
+            id: msg.id,
+            sender: {
+              id: msg.senderId,
+              name: senderName,
+              role: isFromDoctor ? 'doctor' : 'patient'
+            },
+            content: msg.content,
+            type: msg.type,
+            imageUrl: msg.imageUrl,
+            audioUrl: msg.audioUrl,
+            fileUrl: msg.fileUrl,
+            fileName: msg.fileName,
+            timestamp: msg.createdAt?.toDate?.() || new Date(),
+            status: isFromDoctor
+              ? (msg.isRead ? 'read' : msg.delivered ? 'delivered' : 'sent')
+              : 'received'
+          };
+        });
         
         setMessages(formattedMessages);
         
@@ -226,7 +241,7 @@ const RealtimeChat = () => {
   };
 
   const filteredRooms = chatRooms.filter(room => {
-    const roomName = room.patientId || room.doctorId || 'Chat Room';
+    const roomName = room.patientName || room.patientId || room.doctorId || 'Chat Room';
     const lastMessage = room.lastMessage || '';
     return roomName.toLowerCase().includes(searchTerm.toLowerCase()) ||
            lastMessage.toLowerCase().includes(searchTerm.toLowerCase());
@@ -234,8 +249,8 @@ const RealtimeChat = () => {
 
   const getRoomDisplayName = (room) => {
     if (user?.role === 'doctor') {
-      // For doctors, show patient name/ID
-      return room.patientId || 'Patient';
+      // For doctors, show patient name if available, otherwise patient ID
+      return room.patientName || `Patient ${room.patientId || 'Unknown'}`;
     } else if (user?.role === 'admin') {
       // For admins, show limited info
       return 'Patient-Doctor Chat';
@@ -333,21 +348,21 @@ const RealtimeChat = () => {
               >
                 <div className="flex items-center space-x-3">
                   <div className="relative">
-                                         <ProfileAvatar 
-                       user={{ 
-                         first_name: getRoomDisplayName(room).split(' ')[0] || 'User',
-                         last_name: getRoomDisplayName(room).split(' ').slice(1).join(' ') || 'Unknown',
-                         email: 'user@example.com'
-                       }} 
-                       size="md" 
-                     />
+                    <ProfileAvatar 
+                      user={{ 
+                        first_name: room.patientName ? room.patientName.split(' ')[0] : 'Patient',
+                        last_name: room.patientName ? room.patientName.split(' ').slice(1).join(' ') : room.patientId || 'Unknown',
+                        email: room.patientEmail || 'patient@example.com'
+                      }} 
+                      size="md" 
+                    />
                     <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white bg-green-400" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                                           <h3 className="text-sm font-medium text-gray-900 truncate">
-                       {getRoomDisplayName(room)}
-                     </h3>
+                      <h3 className="text-sm font-medium text-gray-900 truncate">
+                        {getRoomDisplayName(room)}
+                      </h3>
                       <span className="text-xs text-gray-500">
                         {room.updatedAt ? formatTime(room.updatedAt.toDate()) : ''}
                       </span>
@@ -355,6 +370,11 @@ const RealtimeChat = () => {
                     <p className="text-sm text-gray-600 truncate">
                       {room.lastMessage || 'No messages yet'}
                     </p>
+                    {room.unreadCount > 0 && (
+                      <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                        {room.unreadCount > 99 ? '99+' : room.unreadCount}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -372,9 +392,9 @@ const RealtimeChat = () => {
               <div className="flex items-center space-x-3">
                 <ProfileAvatar 
                   user={{ 
-                    first_name: getRoomDisplayName(selectedRoom).split(' ')[0] || 'User',
-                    last_name: getRoomDisplayName(selectedRoom).split(' ').slice(1).join(' ') || 'Unknown',
-                    email: 'user@example.com'
+                    first_name: selectedRoom.patientName ? selectedRoom.patientName.split(' ')[0] : 'Patient',
+                    last_name: selectedRoom.patientName ? selectedRoom.patientName.split(' ').slice(1).join(' ') : selectedRoom.patientId || 'Unknown',
+                    email: selectedRoom.patientEmail || 'patient@example.com'
                   }} 
                   size="md" 
                 />
@@ -412,47 +432,104 @@ const RealtimeChat = () => {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${message.sender.role === user.role ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`max-w-xs lg:max-w-md ${message.sender.role === user.role ? 'order-2' : 'order-1'}`}>
-                    <div className={`rounded-lg px-4 py-2 ${
-                      message.sender.role === user.role 
-                        ? 'bg-blue-500 text-white' 
-                        : 'bg-gray-100 text-gray-900'
-                    }`}>
-                      {message.type === 'text' && (
-                        <p className="text-sm">{message.content}</p>
-                      )}
-                      {message.type === 'image' && (
-                        <div>
-                          <img 
-                            src={message.imageUrl} 
-                            alt="Shared image" 
-                            className="max-w-full rounded"
-                          />
-                        </div>
-                      )}
-                      {message.type === 'file' && (
-                        <div className="flex items-center space-x-2">
-                          <File className="h-4 w-4" />
-                          <span className="text-sm">{message.fileName || 'File'}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className={`flex items-center space-x-1 mt-1 ${
-                      message.sender.role === user.role ? 'justify-end' : 'justify-start'
-                    }`}>
-                      <span className="text-xs text-gray-500">
-                        {formatTime(message.timestamp)}
-                      </span>
-                      {message.sender.role === user.role && getStatusIcon(message.status)}
-                    </div>
+              {messages.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  <div className="text-center">
+                    <MessageSquare className="mx-auto h-8 w-8 mb-2 text-gray-400" />
+                    <p className="text-sm">No messages yet</p>
+                    <p className="text-xs mt-1">Start the conversation with your patient</p>
                   </div>
                 </div>
-              ))}
+              ) : (
+                messages.map((message) => {
+                  const isFromDoctor = message.sender.role === 'doctor';
+                  const isFromCurrentUser = message.sender.id === user.userId;
+                  
+                  return (
+                    <div
+                      key={message.id}
+                      className={`flex ${isFromCurrentUser ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-xs lg:max-w-md ${isFromCurrentUser ? 'order-2' : 'order-1'}`}>
+                        {/* Sender name for patient messages */}
+                        {!isFromCurrentUser && (
+                          <div className="mb-1">
+                            <span className="text-xs text-gray-600 font-medium">
+                              {message.sender.name}
+                            </span>
+                          </div>
+                        )}
+                        
+                        <div className={`rounded-lg px-4 py-2 ${
+                          isFromCurrentUser 
+                            ? 'bg-blue-500 text-white' 
+                            : isFromDoctor
+                              ? 'bg-green-100 text-green-900 border border-green-200'
+                              : 'bg-gray-100 text-gray-900'
+                        }`}>
+                          {message.type === 'text' && (
+                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                          )}
+                          {message.type === 'image' && (
+                            <div>
+                              <img 
+                                src={message.imageUrl} 
+                                alt="Shared image" 
+                                className="max-w-full rounded cursor-pointer hover:opacity-90"
+                                onClick={() => window.open(message.imageUrl, '_blank')}
+                              />
+                              {message.content && (
+                                <p className="text-sm mt-2">{message.content}</p>
+                              )}
+                            </div>
+                          )}
+                          {message.type === 'audio' && (
+                            <div className="flex items-center space-x-2">
+                              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                                <span className="text-white text-xs">🎵</span>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium">Voice Message</p>
+                                <audio controls className="mt-1">
+                                  <source src={message.audioUrl} type="audio/mpeg" />
+                                  Your browser does not support the audio element.
+                                </audio>
+                              </div>
+                            </div>
+                          )}
+                          {message.type === 'file' && (
+                            <div className="flex items-center space-x-2">
+                              <File className="h-4 w-4" />
+                              <div>
+                                <p className="text-sm font-medium">{message.fileName || 'File'}</p>
+                                {message.fileUrl && (
+                                  <a 
+                                    href={message.fileUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-blue-600 hover:text-blue-800 underline"
+                                  >
+                                    Download
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className={`flex items-center space-x-1 mt-1 ${
+                          isFromCurrentUser ? 'justify-end' : 'justify-start'
+                        }`}>
+                          <span className="text-xs text-gray-500">
+                            {formatTime(message.timestamp)}
+                          </span>
+                          {isFromCurrentUser && getStatusIcon(message.status)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
               <div ref={messagesEndRef} />
             </div>
 

@@ -6,13 +6,19 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 interface Prescription {
-  id?: string;
+  id?: number;
+  appointmentId?: string;
+  doctorId?: string;
   medication?: string;
   dosage?: string;
   frequency?: string;
   duration?: string;
+  startDate?: string;
+  endDate?: string;
   instructions?: string;
+  fileUrl?: string;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 type Props = {
@@ -29,10 +35,13 @@ const PrescriptionModal: React.FC<Props> = ({ visible, onClose, prescription }) 
 
   // Handle missing prescription data
   const prescriptionData = prescription || {
+    id: Date.now(),
     medication: 'Unknown Medication',
     dosage: 'N/A',
     frequency: 'N/A',
     duration: 'N/A',
+    startDate: new Date().toISOString(),
+    endDate: new Date().toISOString(),
     instructions: 'No instructions available'
   };
 
@@ -119,7 +128,7 @@ const PrescriptionModal: React.FC<Props> = ({ visible, onClose, prescription }) 
                     <View style={styles.infoItem}>
                       <Text style={[styles.label, { color: themeColors.subText }]}>Prescription ID</Text>
                       <Text style={[styles.value, { color: themeColors.text }]}>
-                        {prescriptionData.id || 'RX-' + Date.now().toString().slice(-6)}
+                        {prescriptionData.id ? `RX-${prescriptionData.id}` : 'RX-' + Date.now().toString().slice(-6)}
                       </Text>
                     </View>
                   </View>

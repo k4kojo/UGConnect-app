@@ -32,6 +32,7 @@ import DoctorSettings from './pages/doctor/Settings';
 import DoctorPatients from './pages/doctor/Patients';
 import DoctorPrescriptions from './pages/doctor/Prescriptions';
 import DoctorVideoSession from './pages/doctor/VideoSession';
+import VideoCallTest from './components/VideoCallTest';
 
 function DefaultRedirect() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -369,6 +370,9 @@ function AppRoutes() {
           <DoctorVideoSession />
         </ProtectedRoute>
       } />
+      
+      {/* Video Call Test - For cross-platform testing */}
+      <Route path="/test/video-call" element={<VideoCallTest />} />
       
       {/* Default redirect */}
       <Route path="/" element={<DefaultRedirect />} />

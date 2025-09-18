@@ -10,6 +10,9 @@ import { useThemeContext } from "@/context/ThemeContext";
 import { useCachedAppointments } from "@/hooks/useCachedData";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
+import { Alert } from "react-native";
+import videoCallService from "@/services/videoCallService";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Pressable,
   RefreshControl,
@@ -67,9 +70,61 @@ const Appointments = () => {
     setModalVisible(true);
   };
 
-  const handleConfirmCall = () => {
+  const handleConfirmCall = async () => {
     setModalVisible(false);
-    router.push("/appointment/video-room");
+    
+    if (!activeAppointment) {
+      Alert.alert("Error", "No appointment selected");
+      return;
+    }
+
+    try {
+      // Get current user ID
+      const authUser = await AsyncStorage.getItem("authUser");
+      const user = authUser ? JSON.parse(authUser) : null;
+      
+      if (!user?.userId) {
+        Alert.alert("Error", "Please log in to join the call");
+        return;
+      }
+
+      // Create video call from appointment
+      const videoCall = await videoCallService.createVideoCallFromAppointment(
+        activeAppointment.id,
+        activeAppointment.doctorId,
+        user.userId
+      );
+
+      console.log("Video call created:", videoCall);
+
+      // Navigate to video room with proper parameters
+      router.push({
+        pathname: "/appointment/video-room",
+        params: {
+          roomId: videoCall.roomId,
+          callId: videoCall.id,
+          userId: user.userId,
+          doctorName: activeAppointment.doctorName
+        }
+      });
+    } catch (error) {
+      console.error("Failed to create video call:", error);
+      Alert.alert(
+        "Connection Failed", 
+        "Unable to start video call. Please try again."
+      );
+    }
+  };
+
+  const handleMessage = (appt: any) => {
+    // Navigate to chat with proper parameters
+    router.push({
+      pathname: "/appointment/chat",
+      params: {
+        doctorId: appt.doctorId,
+        doctorName: appt.doctorName
+      }
+    });
   };
 
   return (

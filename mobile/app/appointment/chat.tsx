@@ -45,6 +45,7 @@ import {
 } from "@/firebase/chatService";
 import { ensureFirebaseAuth } from "@/services/authService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import videoCallService from "@/services/videoCallService";
 
 type Message = {
   id: string;
@@ -653,12 +654,37 @@ const ChatScreen = () => {
           
           <TouchableOpacity
             style={styles.headerActionButton}
-            onPress={() => {
-              if (!roomId) {
-                Alert.alert(t("videoRoom.roomNotReady"));
+            onPress={async () => {
+              if (!roomId || !myUserId || !doctorId) {
+                Alert.alert("Error", "Chat room not ready. Please try again.");
                 return;
               }
-              router.push({ pathname: "/appointment/video-room", params: { roomId, doctorName } });
+              
+              try {
+                // Create video call for this chat room
+                const videoCall = await videoCallService.createVideoCall({
+                  chatRoomId: roomId,
+                });
+                
+                console.log("Video call created from chat:", videoCall);
+                
+                // Navigate to video room with proper parameters
+                router.push({
+                  pathname: "/appointment/video-room",
+                  params: {
+                    roomId: videoCall.roomId,
+                    callId: videoCall.id,
+                    userId: myUserId,
+                    doctorName: doctorName
+                  }
+                });
+              } catch (error) {
+                console.error("Failed to create video call from chat:", error);
+                Alert.alert(
+                  "Connection Failed",
+                  "Unable to start video call. Please try again."
+                );
+              }
             }}
             activeOpacity={0.7}
           >

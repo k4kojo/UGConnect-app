@@ -9,7 +9,25 @@ import {
   Text,
   TouchableOpacity,
   View,
+  AppState,
 } from "react-native";
+import videoCallService from "@/services/videoCallService";
+
+// Conditional import for expo-audio (or expo-av)
+let Audio: any = null;
+try {
+  // Try expo-audio first (newer package)
+  Audio = require("expo-audio").Audio;
+} catch (error) {
+  try {
+    // Fallback to expo-av (older package)
+    Audio = require("expo-av").Audio;
+  } catch (error2) {
+    console.warn("Neither expo-audio nor expo-av available, speaker routing will be disabled");
+    Audio = null;
+  }
+}
+
 // Conditional import for WebRTC components
 let RTCView: any;
 try {
@@ -39,10 +57,23 @@ export default function VideoCallWaitingScreen() {
   const [localStream, setLocalStream] = useState<any>(null);
   const [remoteStreams, setRemoteStreams] = useState<Map<string, any>>(new Map());
 
-  // Initialize WebRTC service
+  // Initialize WebRTC service and handle app state changes
   useEffect(() => {
     const initializeWebRTC = async () => {
       try {
+        // Configure audio session for video calling (only if Audio is available)
+        if (Audio && Audio.setAudioModeAsync) {
+          await Audio.setAudioModeAsync({
+            allowsRecording: true,
+            playsInSilentMode: true,
+            shouldDuckAndroid: true,
+            playThroughEarpieceAndroid: !isSpeakerEnabled,
+            staysActiveInBackground: true,
+          });
+        } else {
+          console.warn('Audio configuration not available - expo-audio or expo-av not installed');
+        }
+        
         // Initialize WebRTC service
         webrtcService.current = new WebRTCService(API_BASE_URL.replace('http', 'ws'));
         
@@ -65,6 +96,12 @@ export default function VideoCallWaitingScreen() {
         
         webrtcService.current.onConnectionStateChange = (state) => {
           setConnectionStatus(state);
+          
+          // Update backend call status
+          if (callId && state === 'connected') {
+            videoCallService.updateCallStatus(callId as string, 'in-progress')
+              .catch(err => console.warn('Failed to update call status:', err));
+          }
         };
         
         webrtcService.current.onParticipantJoined = (participant) => {
@@ -102,13 +139,27 @@ export default function VideoCallWaitingScreen() {
 
     initializeWebRTC();
 
+    // Handle app state changes for background/foreground
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === 'background' && webrtcService.current) {
+        // Keep connection alive but pause video if needed
+        console.log('App backgrounded - maintaining call connection');
+      } else if (nextAppState === 'active' && webrtcService.current) {
+        // Resume video if paused
+        console.log('App foregrounded - resuming call');
+      }
+    };
+
+    const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+
     // Cleanup on unmount
     return () => {
+      appStateSubscription?.remove();
       if (webrtcService.current) {
         webrtcService.current.destroy();
       }
     };
-  }, [roomId, userId]);
+  }, [roomId, userId, callId, isSpeakerEnabled]);
 
   // Button handlers
   const toggleCameraFacing = () => {
@@ -119,23 +170,73 @@ export default function VideoCallWaitingScreen() {
 
   const handleMinimize = () => {
     setIsMinimized(true);
+    
+    // Simple PiP simulation - navigate back but keep call active
     Alert.alert(
-      "Minimize",
-      "Call minimized (implement PiP or navigation here)."
+      "Minimize Call",
+      "Call will continue in background. Return to this screen to rejoin.",
+      [
+        {
+          text: "Continue in Background",
+          onPress: () => {
+            // Keep WebRTC connection active but navigate away
+            router.back();
+          }
+        },
+        {
+          text: "Stay in Call",
+          style: "cancel",
+          onPress: () => setIsMinimized(false)
+        }
+      ]
     );
   };
 
   const handleAddPerson = () => {
-    Alert.alert("Add Person", "Open add participant modal or screen.");
+    Alert.alert(
+      "Add Participant", 
+      "Multi-participant calls coming soon!",
+      [
+        {
+          text: "OK",
+          style: "default"
+        }
+      ]
+    );
   };
 
   const handleMoreOptions = () => {
     Alert.alert("More Options", "Show more call options here.");
   };
 
-  const handleToggleSpeaker = () => {
-    setIsSpeakerEnabled((prev) => !prev);
-    // TODO: Implement speaker routing
+  const handleToggleSpeaker = async () => {
+    try {
+      const newSpeakerState = !isSpeakerEnabled;
+      setIsSpeakerEnabled(newSpeakerState);
+      
+      // Configure audio session for speaker routing (only if Audio is available)
+      if (Audio && Audio.setAudioModeAsync) {
+        await Audio.setAudioModeAsync({
+          allowsRecording: true,
+          playsInSilentMode: true,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: !newSpeakerState,
+          staysActiveInBackground: true,
+        });
+      } else {
+        console.warn('Audio routing not available - expo-audio or expo-av not installed');
+        Alert.alert(
+          "Speaker Toggle", 
+          `Speaker ${newSpeakerState ? 'enabled' : 'disabled'} (simulated - install expo-av for actual audio routing)`
+        );
+      }
+      
+      console.log(`Speaker ${newSpeakerState ? 'enabled' : 'disabled'}`);
+    } catch (error) {
+      console.error('Failed to toggle speaker:', error);
+      // Revert state if failed
+      setIsSpeakerEnabled((prev) => !prev);
+    }
   };
 
   const handleToggleVideo = () => {
@@ -159,6 +260,16 @@ export default function VideoCallWaitingScreen() {
       if (webrtcService.current) {
         await webrtcService.current.leaveRoom();
       }
+      
+      // Update call status in backend if callId is available
+      if (callId) {
+        try {
+          await videoCallService.endVideoCall(callId as string);
+        } catch (backendError) {
+          console.warn('Failed to update backend call status:', backendError);
+        }
+      }
+      
       Alert.alert("Call Ended", "You have ended the call.");
       router.back();
     } catch (error) {
@@ -246,6 +357,12 @@ export default function VideoCallWaitingScreen() {
             onPress={toggleCameraFacing}
           >
             <Ionicons name="camera-reverse" size={22} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.circleBtn, isMinimized && styles.activeCircleBtn]}
+            onPress={handleMinimize}
+          >
+            <MaterialIcons name="picture-in-picture-alt" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>
@@ -418,6 +535,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,
+  },
+  activeCircleBtn: {
+    backgroundColor: "rgba(37,99,235,0.8)",
   },
   calleeName: {
     color: "#fff",

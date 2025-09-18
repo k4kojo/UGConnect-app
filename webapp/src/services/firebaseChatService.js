@@ -260,7 +260,7 @@ export const getPatientChatRooms = async (patientId) => {
   return rooms;
 };
 
-// Get all chat rooms for a doctor
+// Get all chat rooms for a doctor with patient names
 export const getDoctorChatRooms = async (doctorId) => {
   const roomsRef = collection(db, "chatRooms");
   const q = query(
@@ -277,6 +277,35 @@ export const getDoctorChatRooms = async (doctorId) => {
     });
   });
   return rooms;
+};
+
+// Get patient names for chat rooms (to be called from React component)
+export const enrichChatRoomsWithPatientNames = async (rooms, patientsService) => {
+  const enrichedRooms = await Promise.all(
+    rooms.map(async (room) => {
+      try {
+        if (room.patientId) {
+          const patient = await patientsService.getPatientById(room.patientId);
+          return {
+            ...room,
+            patientName: patient?.firstName && patient?.lastName 
+              ? `${patient.firstName} ${patient.lastName}`
+              : patient?.name || `Patient ${room.patientId}`,
+            patientEmail: patient?.email,
+            patientPhone: patient?.phone
+          };
+        }
+        return room;
+      } catch (error) {
+        console.warn(`Failed to fetch patient ${room.patientId}:`, error);
+        return {
+          ...room,
+          patientName: `Patient ${room.patientId}`
+        };
+      }
+    })
+  );
+  return enrichedRooms;
 };
 
 // Create a chat room between a patient and doctor

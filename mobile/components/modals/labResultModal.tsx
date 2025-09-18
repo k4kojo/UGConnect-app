@@ -7,7 +7,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 interface LabResult {
-  id?: string;
+  id?: number;
+  patientId?: string;
+  doctorId?: string;
+  appointmentId?: string;
   testName?: string;
   result?: string;
   unit?: string;
@@ -15,6 +18,9 @@ interface LabResult {
   status?: string;
   resultDate?: string;
   notes?: string;
+  fileUrl?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface LabResultModalProps {
@@ -31,6 +37,7 @@ const LabResultModal: React.FC<LabResultModalProps> = ({ visible, onClose, resul
 
   // Handle missing result data
   const resultData = result || {
+    id: Date.now(),
     testName: 'Unknown Test',
     result: 'N/A',
     unit: '',
@@ -94,7 +101,7 @@ const LabResultModal: React.FC<LabResultModalProps> = ({ visible, onClose, resul
                     <View style={styles.infoItem}>
                       <Text style={[styles.label, { color: themeColors.subText }]}>Reference ID</Text>
                       <Text style={[styles.value, { color: themeColors.text }]}>
-                        {resultData.id || 'LAB-' + Date.now().toString().slice(-8)}
+                        {resultData.id ? `LAB-${resultData.id}` : 'LAB-' + Date.now().toString().slice(-8)}
                       </Text>
                     </View>
                   </View>

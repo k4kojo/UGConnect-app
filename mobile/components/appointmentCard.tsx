@@ -40,125 +40,147 @@ const AppointmentCard: React.FC<Props> = ({ items, onJoinCall, onMessage, showAc
           style={[
             styles.card, 
             { 
-              backgroundColor: themeColors.subCard,
+              backgroundColor: themeColors.card,
               borderColor: themeColors.border 
             },
+            isPast && styles.pastCard
           ]}
         >
+          {/* Header Section */}
           <View style={styles.headerRow}>
-            <Avatar 
-              imageUrl={appointment.imageUrl} 
-              fullName={appointment.doctorName} 
-              size={55} 
-              border
-              containerStyle={{ backgroundColor: Colors.brand.avatarBg, borderColor: Colors.brand.avatarBg }} 
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={[
-                styles.doctorName, 
-                { color: themeColors.text },
-              ]}>
-                {appointment.doctorName}
-              </Text>
-              <Text style={[
-                styles.specialty, 
-                { color: themeColors.subText },
-              ]}>
-                {appointment.specialty}
-              </Text>
+            <View style={styles.doctorInfo}>
+              <Avatar 
+                imageUrl={appointment.imageUrl} 
+                fullName={appointment.doctorName} 
+                size={60} 
+                border
+                containerStyle={{ backgroundColor: brandColors.primary + '15', borderColor: brandColors.primary + '30' }} 
+              />
+              <View style={styles.doctorDetails}>
+                <Text style={[
+                  styles.doctorName, 
+                  { color: themeColors.text },
+                  isPast && styles.pastText
+                ]}>
+                  {appointment.doctorName}
+                </Text>
+                <Text style={[
+                  styles.specialty, 
+                  { color: themeColors.subText },
+                  isPast && styles.pastText
+                ]}>
+                  {appointment.specialty}
+                </Text>
+                
+                {/* Date/Time Display */}
+                <View style={styles.dateTimeRow}>
+                  <View style={styles.dateTimeItem}>
+                    <Ionicons 
+                      name="calendar-outline" 
+                      size={14} 
+                      color={isPast ? themeColors.subText + '80' : brandColors.primary} 
+                    />
+                    <Text style={[
+                      styles.dateTimeText, 
+                      { color: isPast ? themeColors.subText + '80' : themeColors.subText }
+                    ]}>
+                      {appointment.date}
+                    </Text>
+                  </View>
+                  <View style={styles.dateTimeItem}>
+                    <Ionicons 
+                      name="time-outline" 
+                      size={14} 
+                      color={isPast ? themeColors.subText + '80' : brandColors.primary} 
+                    />
+                    <Text style={[
+                      styles.dateTimeText, 
+                      { color: isPast ? themeColors.subText + '80' : themeColors.subText }
+                    ]}>
+                      {appointment.time}
+                    </Text>
+                  </View>
+                </View>
+              </View>
             </View>
-            <View style={styles.badgeColumn}>
+            
+            {/* Enhanced Status Badges */}
+            <View style={styles.statusColumn}>
               <View
                 style={[
-                  styles.badge,
-                  appointment.type === 'Video Call' ? styles.badgeVideo : styles.badgeInPerson,
+                  styles.typeBadge,
+                  appointment.type === 'Video Call' ? 
+                    { backgroundColor: '#FF980015', borderColor: '#FF9800' } : 
+                    { backgroundColor: '#4CAF5015', borderColor: '#4CAF50' }
                 ]}
               >
                 <Ionicons 
                   name={appointment.type === 'Video Call' ? "videocam" : "person"} 
-                  size={14} 
-                  color={brandColors.primary}
-                  style={{ marginRight: 4 }} 
+                  size={12} 
+                  color={appointment.type === 'Video Call' ? '#FF9800' : '#4CAF50'}
                 />
-                <Text style={[styles.badgeText, { color: brandColors.primary }]}>
-                  {appointment.type === 'Video Call' ? 'Video Call' : 'In-Person'}
+                <Text style={[
+                  styles.typeBadgeText, 
+                  { color: appointment.type === 'Video Call' ? '#FF9800' : '#4CAF50' }
+                ]}>
+                  {appointment.type === 'Video Call' ? 'Video' : 'In-Person'}
                 </Text>
               </View>
+              
               {isPast ? (
-                <View style={[styles.badge, styles.badgeCompleted]}>
-                  <Text style={[styles.badgeText, { color: themeColors.subText }]}>
+                <View style={[styles.statusBadge, { backgroundColor: '#2196F315', borderColor: '#2196F3' }]}>
+                  <Ionicons name="checkmark-circle" size={12} color="#2196F3" />
+                  <Text style={[styles.statusBadgeText, { color: '#2196F3' }]}>
                     Completed
                   </Text>
                 </View>
               ) : appointment.status ? (
                 <View
                   style={[
-                    styles.badge,
-                    appointment.status === 'confirmed' ? styles.badgeConfirmed : styles.badgePending,
+                    styles.statusBadge,
+                    appointment.status === 'confirmed' ? 
+                      { backgroundColor: '#4CAF5015', borderColor: '#4CAF50' } : 
+                      { backgroundColor: '#FF980015', borderColor: '#FF9800' }
                   ]}
                 >
+                  <Ionicons 
+                    name={appointment.status === 'confirmed' ? "checkmark-circle" : "time"} 
+                    size={12} 
+                    color={appointment.status === 'confirmed' ? '#4CAF50' : '#FF9800'}
+                  />
                   <Text
                     style={[
-                      styles.badgeText,
+                      styles.statusBadgeText,
                       {
-                        color:
-                          appointment.status === 'confirmed'
-                            ? themeColors.success
-                            : themeColors.warning,
+                        color: appointment.status === 'confirmed' ? '#4CAF50' : '#FF9800'
                       },
                     ]}
                   >
-                    {appointment.status}
+                    {appointment.status === 'confirmed' ? 'Confirmed' : 'Pending'}
                   </Text>
                 </View>
               ) : null}
             </View>
           </View>
 
-          <View style={styles.infoSection}>
-            <View style={styles.datetimeContainer}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Ionicons 
-                  name="calendar-outline" 
-                  size={16} 
-                  color={isPast ? themeColors.subText + '80' : themeColors.subText} 
-                />
-                <Text style={[
-                  styles.date, 
-                  { color: themeColors.subText }
-                ]}>
-                  {appointment.date}
-                </Text>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Ionicons 
-                  name="time-outline" 
-                  size={16} 
-                  color={isPast ? themeColors.subText + '80' : themeColors.subText} 
-                />
-                <Text style={[
-                  styles.time, 
-                  { color: themeColors.subText },
-                ]}>
-                  {appointment.time}
-                </Text>
-              </View>
-            </View>
-          </View>
-
+          {/* Enhanced Action Section */}
           {showActions && (
             <View style={styles.actionSection}>
               {isPast ? (
                 <TouchableOpacity
                   style={[
-                    styles.button, 
+                    styles.actionButton, 
                     styles.fullWidthButton,
-                    { borderColor: themeColors.border, backgroundColor: themeColors.border }
+                    { 
+                      backgroundColor: themeColors.background, 
+                      borderColor: themeColors.border 
+                    }
                   ]}
                   onPress={() => onMessage?.(appointment)}
+                  activeOpacity={0.7}
                 >
                   <Ionicons name="chatbubble-outline" size={18} color={themeColors.text} />
-                  <Text style={[styles.buttonText, { color: themeColors.text }]}>
+                  <Text style={[styles.actionButtonText, { color: themeColors.text }]}>
                     View Chat History
                   </Text>
                 </TouchableOpacity>
@@ -166,26 +188,30 @@ const AppointmentCard: React.FC<Props> = ({ items, onJoinCall, onMessage, showAc
                 <>
                   <TouchableOpacity
                     style={[
-                      styles.button, 
-                      styles.primaryButton, 
-                      styles.actionButton,
+                      styles.actionButton, 
+                      styles.primaryActionButton,
                       { backgroundColor: brandColors.primary }
                     ]}
                     onPress={() => onJoinCall?.(appointment)}
+                    activeOpacity={0.8}
                   >
-                    <Ionicons name="videocam-outline" size={18} color="#fff" />
-                    <Text style={styles.primaryButtonText}>Join Call</Text>
+                    <Ionicons name="videocam" size={18} color="#fff" />
+                    <Text style={styles.primaryActionButtonText}>Join Call</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[
-                      styles.button, 
-                      styles.actionButton,
-                      { borderColor: themeColors.border, backgroundColor: themeColors.border }
+                      styles.actionButton, 
+                      styles.secondaryActionButton,
+                      { 
+                        backgroundColor: themeColors.background, 
+                        borderColor: themeColors.border 
+                      }
                     ]}
                     onPress={() => onMessage?.(appointment)}
+                    activeOpacity={0.7}
                   >
                     <Ionicons name="chatbubble-outline" size={18} color={themeColors.text} />
-                    <Text style={[styles.buttonText, { color: themeColors.text }]}>
+                    <Text style={[styles.actionButtonText, { color: themeColors.text }]}>
                       Message
                     </Text>
                   </TouchableOpacity>
@@ -193,15 +219,19 @@ const AppointmentCard: React.FC<Props> = ({ items, onJoinCall, onMessage, showAc
               ) : (
                 <TouchableOpacity
                   style={[
-                    styles.button, 
+                    styles.actionButton, 
                     styles.fullWidthButton,
-                    { borderColor: themeColors.border }
+                    { 
+                      backgroundColor: themeColors.background, 
+                      borderColor: themeColors.border 
+                    }
                   ]}
                   onPress={() => onMessage?.(appointment)}
+                  activeOpacity={0.7}
                 >
                   <Ionicons name="chatbubble-outline" size={18} color={themeColors.text} />
-                  <Text style={[styles.buttonText, { color: themeColors.text }]}>
-                    Message
+                  <Text style={[styles.actionButtonText, { color: themeColors.text }]}>
+                    Message Doctor
                   </Text>
                 </TouchableOpacity>
               )}
@@ -215,39 +245,145 @@ const AppointmentCard: React.FC<Props> = ({ items, onJoinCall, onMessage, showAc
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: 10,
+    paddingVertical: 8,
     width: '100%',
   },
   card: {
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+    width: '100%',
+    borderWidth: 1,
+  },
+  pastCard: {
+    opacity: 0.75,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
+  doctorInfo: {
+    flexDirection: 'row',
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  doctorDetails: {
+    marginLeft: 16,
+    flex: 1,
+  },
+  doctorName: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
+    lineHeight: 24,
+  },
+  specialty: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  pastText: {
+    opacity: 0.7,
+  },
+  dateTimeRow: {
+    paddingTop: 20,
+    flexDirection: 'row',
+    marginStart: -70,
+    gap: 16,
+  },
+  dateTimeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dateTimeText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  statusColumn: {
+    alignItems: 'flex-end',
+    gap: 8,
+    marginLeft: 12,
+  },
+  typeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 10,
+    borderWidth: 1,
+    gap: 4,
+  },
+  typeBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 4,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  actionSection: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
-    width: '100%',
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    gap: 12,
+  primaryActionButton: {
+    flex: 1,
+    borderColor: 'transparent',
+    shadowOpacity: 0.2,
+    elevation: 3,
   },
-  // Avatar-specific styles removed in favor of shared Avatar component
-  infoSection: {
-    marginBottom: 16,
+  secondaryActionButton: {
+    flex: 1,
   },
-  doctorName: {
-    fontSize: 16,
+  fullWidthButton: {
+    flex: 1,
+  },
+  actionButtonText: {
     fontWeight: '600',
-    marginBottom: 4,
-  },
-  specialty: {
     fontSize: 14,
-    marginBottom: 8,
   },
+  primaryActionButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  // Legacy styles (kept for compatibility)
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -270,12 +406,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '500',
-    marginLeft: 6,
-    textTransform: 'capitalize',
-  },
   badgeConfirmed: {
     backgroundColor: '#ecfdf5',
   },
@@ -284,56 +414,6 @@ const styles = StyleSheet.create({
   },
   badgeCompleted: {
     backgroundColor: '#f3f4f6',
-  },
-  // pastCard: {
-  //   opacity: 0.7,
-  // },
-  // pastText: {
-  //   opacity: 0.6,
-  // },
-  datetimeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    gap: 16,
-  },
-  date: {
-    fontSize: 14,
-  },
-  time: {
-    fontSize: 14,
-  },
-  actionSection: {
-    gap: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  actionButton: {
-    flex: 0.48,
-  },
-  primaryButton: {
-    borderColor: 'transparent',
-  },
-  fullWidthButton: {
-    flex: 1,
-  },
-  buttonText: {
-    fontWeight: '500',
-    fontSize: 14,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontWeight: '500',
-    fontSize: 14,
   },
 });
 

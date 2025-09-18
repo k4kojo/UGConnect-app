@@ -55,8 +55,8 @@ const QuickActionsSection = ({ themeColors }: QuickActionsProps) => {
 
 const styles = StyleSheet.create({
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: "600",
+    fontSize: 18,
+    fontWeight: "700",
     marginTop: 30,
     marginBottom: 10,
   },

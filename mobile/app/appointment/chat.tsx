@@ -19,6 +19,8 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Animated,
+  Dimensions,
 } from "react-native";
 
 import ChatBackground from "@/components/backgrounds/ChatBackground";
@@ -55,6 +57,8 @@ type Message = {
   mimeType?: string;
   timestamp: string;
   status: "sent" | "delivered" | "seen";
+  reactions?: { [userId: string]: string };
+  replyTo?: string;
 };
 
 const ChatScreen = () => {
@@ -92,6 +96,10 @@ const ChatScreen = () => {
   const [playbackDur, setPlaybackDur] = useState(0);
   const [attachSheetVisible, setAttachSheetVisible] = useState(false);
   const [roomCreatedAt, setRoomCreatedAt] = useState<Date | null>(null);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [showReactions, setShowReactions] = useState<string | null>(null);
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const { width: screenWidth } = Dimensions.get('window');
 
   const formatDuration = (ms: number) => {
     const totalSec = Math.floor(ms / 1000);
@@ -232,32 +240,61 @@ const ChatScreen = () => {
   };
 
   const handleLongPress = (msg: Message) => {
-    if (msg.from !== "user") return;
-
     const actions: Array<{ text: string; onPress?: () => void; style?: any }> = [];
-    if (msg.text) {
+    
+    // Reply option for all messages
+    actions.push({
+      text: "Reply",
+      onPress: () => {
+        setReplyingTo(msg);
+      },
+    });
+
+    // React option for all messages
+    actions.push({
+      text: "React",
+      onPress: () => {
+        setShowReactions(msg.id);
+      },
+    });
+
+    // Edit and Delete only for user's own messages
+    if (msg.from === "user") {
+      if (msg.text) {
+        actions.push({
+          text: "Edit",
+          onPress: () => {
+            setInput(msg.text || "");
+            setEditingId(msg.id);
+          },
+        });
+      }
       actions.push({
-        text: "Edit",
+        text: "Delete",
         onPress: () => {
-          setInput(msg.text || "");
-          setEditingId(msg.id);
+          if (!roomId || !myUserId) return;
+          // Firestore delete with permission check
+          // eslint-disable-next-line @typescript-eslint/no-floating-promises
+          deleteMessage(roomId, msg.id, myUserId).catch(() =>
+            Alert.alert("Failed to delete message")
+          );
         },
+        style: "destructive",
       });
     }
-    actions.push({
-      text: "Delete",
-      onPress: () => {
-        if (!roomId || !myUserId) return;
-        // Firestore delete with permission check
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        deleteMessage(roomId, msg.id, myUserId).catch(() =>
-          Alert.alert("Failed to delete message")
-        );
-      },
-      style: "destructive",
-    });
+    
     actions.push({ text: "Cancel", style: "cancel" });
     Alert.alert("Message Options", "Choose an action", actions as any);
+  };
+
+  const handleReaction = (messageId: string, emoji: string) => {
+    // TODO: Implement reaction functionality with Firebase
+    console.log(`Adding reaction ${emoji} to message ${messageId}`);
+    setShowReactions(null);
+  };
+
+  const cancelReply = () => {
+    setReplyingTo(null);
   };
 
   // Attachment options
@@ -525,6 +562,28 @@ const ChatScreen = () => {
   }, []);
 
   // Ensure typing flag is cleared when leaving the room or unmounting
+  // Typing animation effect
+  useEffect(() => {
+    if (peerTyping) {
+      const animation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(slideAnim, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(slideAnim, {
+            toValue: 0.3,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      animation.start();
+      return () => animation.stop();
+    }
+  }, [peerTyping, slideAnim]);
+
   useEffect(() => {
     return () => {
       if (typingTimerRef.current) {
@@ -544,41 +603,68 @@ const ChatScreen = () => {
     >
       {/* Decorative background */}
       <ChatBackground mode={theme as "light" | "dark"} coverage={1} density="dense" />
-      {/* Header */}
+      {/* Enhanced Header */}
       <View style={[styles.header, { backgroundColor: Colors.brand.primary }]}>
-        <TouchableOpacity onPress={() => router.push("/tabs/appointment")}>
-          <Text>
-            <Ionicons name="chevron-back" size={24} color="#fff" />
-          </Text>
-        </TouchableOpacity>
-        <Image
-          source={require("@/assets/images/doctor_1.jpg")}
-          style={styles.avatar}
-        />
-        <View style={{ flexDirection: "column" }}>
-          <Text style={styles.doctorName}>{doctorName}</Text>
-          {peerTyping && (
-            <Text
-              style={{ fontStyle: "italic", marginBottom: 5, color: "#fff" }}
-            >
-              Typing...
-            </Text>
-          )}
-        </View>
-        <View style={{ flex: 1 }} />
-        <TouchableOpacity
-          onPress={() => {
-            if (!roomId) {
-              Alert.alert(t("videoRoom.roomNotReady"));
-              return;
-            }
-            router.push({ pathname: "/appointment/video-room", params: { roomId, doctorName } });
-          }}
+        <TouchableOpacity 
+          onPress={() => router.push("/tabs/appointment")}
+          style={styles.backButton}
+          activeOpacity={0.7}
         >
-          <Text>
-            <Ionicons name="videocam-outline" size={24} color="#fff" />
-          </Text>
+          <Ionicons name="chevron-back" size={24} color="#fff" />
         </TouchableOpacity>
+        
+        <View style={styles.doctorInfo}>
+          <View style={styles.avatarContainer}>
+            <Image
+              source={require("@/assets/images/doctor_1.jpg")}
+              style={styles.avatar}
+            />
+            <View style={[styles.onlineIndicator, { backgroundColor: '#4CAF50' }]} />
+          </View>
+          
+          <View style={styles.doctorDetails}>
+            <Text style={styles.doctorName}>{doctorName}</Text>
+            {peerTyping ? (
+              <View style={styles.typingContainer}>
+                <View style={styles.typingDots}>
+                  <Animated.View style={[styles.typingDot, { opacity: slideAnim }]} />
+                  <Animated.View style={[styles.typingDot, { opacity: slideAnim }]} />
+                  <Animated.View style={[styles.typingDot, { opacity: slideAnim }]} />
+                </View>
+                <Text style={styles.typingText}>Typing...</Text>
+              </View>
+            ) : (
+              <Text style={styles.statusText}>Online • Tap for info</Text>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerActionButton}
+            onPress={() => {
+              // Add phone call functionality
+              Alert.alert("Voice Call", "Voice calling feature coming soon!");
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="call-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.headerActionButton}
+            onPress={() => {
+              if (!roomId) {
+                Alert.alert(t("videoRoom.roomNotReady"));
+                return;
+              }
+              router.push({ pathname: "/appointment/video-room", params: { roomId, doctorName } });
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="videocam-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <KeyboardAvoidingView
@@ -596,74 +682,152 @@ const ChatScreen = () => {
               <Text style={styles.initHeaderText}>{formatInitiationLabel(roomCreatedAt)}</Text>
             </View>
           )}
-          {messages.map((msg) => (
-            <TouchableOpacity
-              key={msg.id}
-              onLongPress={() => handleLongPress(msg)}
-              activeOpacity={0.8}
-              style={[
-                styles.messageBubble,
-                msg.from === "user"
-                  ? [
-                      styles.userBubble,
-                      { backgroundColor: Colors.brand.primary },
-                    ]
-                  : styles.doctorBubble,
-              ]}
-            >
-              {msg.text && (
-                <Text style={[styles.messageText, { color: "#fff" }]}>
-                  {msg.text}
-                </Text>
-              )}
-              {msg.image && (
-                <Image
-                  source={{ uri: msg.image }}
-                  style={{ width: 200, height: 200, borderRadius: 10 }}
-                />
-              )}
-              {msg.audio && (
-                <TouchableOpacity
-                  onPress={() => handlePlayAudio(msg)}
-                  style={{ marginTop: 5, flexDirection: "row", alignItems: "center", gap: 6 }}
-                >
-                  <Ionicons
-                    name={playingId === msg.id ? "pause-circle" : "play-circle"}
-                    size={22}
-                    color="#fff"
-                  />
-                  <Text style={{ color: "#fff" }}>
-                    {playingId === msg.id
-                      ? `${formatDuration(playbackPos)} / ${formatDuration(playbackDur)}`
-                      : "Play audio"}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {msg.fileUrl && (
-                <TouchableOpacity
-                  onPress={() => Linking.openURL(msg.fileUrl!)}
-                  style={{ marginTop: 6, flexDirection: "row", alignItems: "center", gap: 8 }}
-                >
-                  <Ionicons name="document-attach-outline" size={20} color="#fff" />
-                  <Text style={{ color: "#fff", textDecorationLine: "underline" }} numberOfLines={1}>
-                    {msg.fileName || "Attachment"}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              <Text style={styles.timestamp}>
-                {msg.timestamp}{" "}
-                {msg.from === "user" && (
-                  msg.status === "seen" ? (
-                    <Ionicons name="checkmark-done" size={15} color="#34B7F1" />
-                  ) : msg.status === "delivered" ? (
-                    <Ionicons name="checkmark-done-outline" size={15} color="#ddd" />
-                  ) : (
-                    <Ionicons name="checkmark" size={15} color="#ddd" />
-                  )
+          {messages.map((msg, index) => {
+            const isUser = msg.from === "user";
+            const showAvatar = !isUser && (index === 0 || messages[index - 1]?.from !== msg.from);
+            const isLastInGroup = index === messages.length - 1 || messages[index + 1]?.from !== msg.from;
+            
+            return (
+              <View key={msg.id} style={[styles.messageContainer, isUser ? styles.userMessageContainer : styles.doctorMessageContainer]}>
+                {/* Reply indicator */}
+                {msg.replyTo && (
+                  <View style={[styles.replyIndicator, isUser ? styles.userReplyIndicator : styles.doctorReplyIndicator]}>
+                    <View style={styles.replyLine} />
+                    <Text style={styles.replyText}>Replying to message</Text>
+                  </View>
                 )}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                
+                <View style={styles.messageRow}>
+                  {/* Doctor avatar */}
+                  {showAvatar && !isUser && (
+                    <View style={styles.messageAvatar}>
+                      <Image
+                        source={require("@/assets/images/doctor_1.jpg")}
+                        style={styles.messageAvatarImage}
+                      />
+                    </View>
+                  )}
+                  {!showAvatar && !isUser && <View style={styles.messageAvatarSpacer} />}
+                  
+                  <TouchableOpacity
+                    onLongPress={() => handleLongPress(msg)}
+                    activeOpacity={0.8}
+                    style={[
+                      styles.messageBubble,
+                      isUser ? styles.userBubble : styles.doctorBubble,
+                      isUser 
+                        ? { backgroundColor: Colors.brand.primary }
+                        : { backgroundColor: themeColors.card },
+                      !isLastInGroup && styles.groupedBubble,
+                      isLastInGroup && (isUser ? styles.lastUserBubble : styles.lastDoctorBubble)
+                    ]}
+                  >
+                    {msg.text && (
+                      <Text style={[
+                        styles.messageText, 
+                        { color: isUser ? "#fff" : themeColors.text }
+                      ]}>
+                        {msg.text}
+                      </Text>
+                    )}
+                    
+                    {msg.image && (
+                      <View style={styles.imageContainer}>
+                        <Image
+                          source={{ uri: msg.image }}
+                          style={styles.messageImage}
+                        />
+                      </View>
+                    )}
+                    
+                    {msg.audio && (
+                      <TouchableOpacity
+                        onPress={() => handlePlayAudio(msg)}
+                        style={styles.audioContainer}
+                      >
+                        <View style={styles.audioButton}>
+                          <Ionicons
+                            name={playingId === msg.id ? "pause" : "play"}
+                            size={18}
+                            color={isUser ? "#fff" : Colors.brand.primary}
+                          />
+                        </View>
+                        <View style={styles.audioInfo}>
+                          <Text style={[styles.audioText, { color: isUser ? "#fff" : themeColors.text }]}>
+                            {playingId === msg.id
+                              ? `${formatDuration(playbackPos)} / ${formatDuration(playbackDur)}`
+                              : "Voice message"}
+                          </Text>
+                          <View style={[styles.audioWaveform, { backgroundColor: isUser ? "rgba(255,255,255,0.3)" : "rgba(37,99,235,0.3)" }]}>
+                            {/* Simplified waveform visualization */}
+                            {[...Array(12)].map((_, i) => (
+                              <View 
+                                key={i} 
+                                style={[
+                                  styles.waveformBar,
+                                  { 
+                                    height: Math.random() * 16 + 4,
+                                    backgroundColor: isUser ? "rgba(255,255,255,0.6)" : "rgba(37,99,235,0.6)"
+                                  }
+                                ]} 
+                              />
+                            ))}
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                    
+                    {msg.fileUrl && (
+                      <TouchableOpacity
+                        onPress={() => Linking.openURL(msg.fileUrl!)}
+                        style={styles.fileContainer}
+                      >
+                        <View style={[styles.fileIcon, { backgroundColor: isUser ? "rgba(255,255,255,0.2)" : "rgba(37,99,235,0.2)" }]}>
+                          <Ionicons name="document-text" size={20} color={isUser ? "#fff" : Colors.brand.primary} />
+                        </View>
+                        <View style={styles.fileInfo}>
+                          <Text style={[styles.fileName, { color: isUser ? "#fff" : themeColors.text }]} numberOfLines={1}>
+                            {msg.fileName || "Document"}
+                          </Text>
+                          <Text style={[styles.fileSize, { color: isUser ? "rgba(255,255,255,0.7)" : themeColors.subText }]}>
+                            Tap to open
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    )}
+                    
+                    {/* Message reactions */}
+                    {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                      <View style={styles.reactionsContainer}>
+                        {Object.entries(msg.reactions).map(([userId, emoji]) => (
+                          <View key={userId} style={styles.reactionBubble}>
+                            <Text style={styles.reactionEmoji}>{emoji}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                    
+                    <View style={styles.messageFooter}>
+                      <Text style={[styles.timestamp, { color: isUser ? "rgba(255,255,255,0.7)" : themeColors.subText }]}>
+                        {msg.timestamp}
+                      </Text>
+                      {isUser && (
+                        <View style={styles.statusIndicator}>
+                          {msg.status === "seen" ? (
+                            <Ionicons name="checkmark-done" size={14} color="#34B7F1" />
+                          ) : msg.status === "delivered" ? (
+                            <Ionicons name="checkmark-done-outline" size={14} color="rgba(255,255,255,0.7)" />
+                          ) : (
+                            <Ionicons name="checkmark" size={14} color="rgba(255,255,255,0.7)" />
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })}
         </ScrollView>
 
         {attachSheetVisible && (
@@ -694,7 +858,51 @@ const ChatScreen = () => {
           </View>
         )}
 
-        {/* Input */}
+        {/* Reply Bar */}
+        {replyingTo && (
+          <View style={[styles.replyBar, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+            <View style={styles.replyBarContent}>
+              <Ionicons name="return-down-forward" size={16} color={Colors.brand.primary} />
+              <View style={styles.replyBarText}>
+                <Text style={[styles.replyBarLabel, { color: Colors.brand.primary }]}>
+                  Replying to {replyingTo.from === "user" ? "You" : doctorName}
+                </Text>
+                <Text style={[styles.replyBarMessage, { color: themeColors.subText }]} numberOfLines={1}>
+                  {replyingTo.text || replyingTo.audio ? "Voice message" : replyingTo.image ? "Image" : "File"}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity onPress={cancelReply} style={styles.replyBarClose}>
+              <Ionicons name="close" size={20} color={themeColors.subText} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Reaction Picker */}
+        {showReactions && (
+          <View style={[styles.reactionPicker, { backgroundColor: themeColors.card }]}>
+            <Text style={[styles.reactionPickerTitle, { color: themeColors.text }]}>React to message</Text>
+            <View style={styles.reactionOptions}>
+              {['❤️', '👍', '👎', '😂', '😮', '😢', '😡'].map((emoji) => (
+                <TouchableOpacity
+                  key={emoji}
+                  style={styles.reactionOption}
+                  onPress={() => handleReaction(showReactions, emoji)}
+                >
+                  <Text style={styles.reactionOptionEmoji}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity 
+              style={styles.reactionPickerClose}
+              onPress={() => setShowReactions(null)}
+            >
+              <Text style={[styles.reactionPickerCloseText, { color: themeColors.subText }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Enhanced Input */}
         <View
           style={[
             styles.inputContainer,
@@ -809,49 +1017,278 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 16,
     paddingHorizontal: 16,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 8,
+  },
+  doctorInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  avatarContainer: {
+    position: "relative",
+    marginRight: 12,
   },
   avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    marginLeft: 10,
-    marginRight: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  onlineIndicator: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  doctorDetails: {
+    flex: 1,
   },
   doctorName: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "600",
+    marginBottom: 2,
+  },
+  statusText: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 13,
+    fontWeight: "400",
+  },
+  typingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  typingDots: {
+    flexDirection: "row",
+    marginRight: 6,
+  },
+  typingDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.8)",
+    marginHorizontal: 1,
+  },
+  typingText: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 13,
+    fontStyle: "italic",
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  headerActionButton: {
+    padding: 8,
+    marginLeft: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.1)",
   },
   chatContainer: {
     padding: 16,
     flexGrow: 1,
     justifyContent: "flex-end",
   },
+  // Message Container Styles
+  messageContainer: {
+    marginBottom: 4,
+  },
+  userMessageContainer: {
+    alignItems: "flex-end",
+  },
+  doctorMessageContainer: {
+    alignItems: "flex-start",
+  },
+  messageRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    maxWidth: "85%",
+  },
+  messageAvatar: {
+    marginRight: 8,
+    marginBottom: 4,
+  },
+  messageAvatarImage: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  messageAvatarSpacer: {
+    width: 36,
+  },
+  // Enhanced Message Bubble Styles
   messageBubble: {
-    maxWidth: "75%",
-    borderRadius: 16,
-    padding: 10,
-    marginBottom: 12,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginBottom: 2,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   userBubble: {
-    alignSelf: "flex-end",
-    borderBottomRightRadius: 0,
+    borderBottomRightRadius: 6,
   },
   doctorBubble: {
-    backgroundColor: "#444",
-    alignSelf: "flex-start",
-    borderBottomLeftRadius: 0,
+    borderBottomLeftRadius: 6,
+  },
+  groupedBubble: {
+    marginBottom: 2,
+  },
+  lastUserBubble: {
+    borderBottomRightRadius: 6,
+  },
+  lastDoctorBubble: {
+    borderBottomLeftRadius: 6,
   },
   messageText: {
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  // Reply Indicator Styles
+  replyIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+    paddingHorizontal: 16,
+  },
+  userReplyIndicator: {
+    justifyContent: "flex-end",
+  },
+  doctorReplyIndicator: {
+    justifyContent: "flex-start",
+    marginLeft: 36,
+  },
+  replyLine: {
+    width: 3,
+    height: 16,
+    backgroundColor: Colors.brand.primary,
+    borderRadius: 2,
+    marginRight: 8,
+  },
+  replyText: {
+    fontSize: 12,
+    color: Colors.brand.primary,
+    fontWeight: "500",
+  },
+  // Media Content Styles
+  imageContainer: {
+    borderRadius: 12,
+    overflow: "hidden",
+    marginBottom: 4,
+  },
+  messageImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 12,
+  },
+  // Audio Message Styles
+  audioContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  audioButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  audioInfo: {
+    flex: 1,
+  },
+  audioText: {
+    fontSize: 13,
+    fontWeight: "500",
+    marginBottom: 4,
+  },
+  audioWaveform: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+  },
+  waveformBar: {
+    width: 2,
+    backgroundColor: "rgba(255,255,255,0.6)",
+    marginHorizontal: 1,
+    borderRadius: 1,
+  },
+  // File Attachment Styles
+  fileContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  fileIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  fileInfo: {
+    flex: 1,
+  },
+  fileName: {
+    fontSize: 14,
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  fileSize: {
+    fontSize: 12,
+  },
+  // Reaction Styles
+  reactionsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  reactionBubble: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: 4,
+    marginBottom: 4,
+  },
+  reactionEmoji: {
     fontSize: 14,
   },
-  timestamp: {
+  // Message Footer Styles
+  messageFooter: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "flex-end",
     marginTop: 4,
+  },
+  timestamp: {
     fontSize: 11,
-    color: "#ddd",
-    textAlign: "right",
+    marginRight: 4,
+  },
+  statusIndicator: {
+    marginLeft: 4,
   },
   initBanner: {
     position: "absolute",
@@ -939,6 +1376,68 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 16,
+  },
+  // Reply Bar Styles
+  replyBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+  },
+  replyBarContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  replyBarText: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  replyBarLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  replyBarMessage: {
+    fontSize: 13,
+  },
+  replyBarClose: {
+    padding: 4,
+  },
+  // Reaction Picker Styles
+  reactionPicker: {
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.1)",
+  },
+  reactionPickerTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  reactionOptions: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginBottom: 16,
+  },
+  reactionOption: {
+    padding: 12,
+    borderRadius: 25,
+    backgroundColor: "rgba(37,99,235,0.1)",
+  },
+  reactionOptionEmoji: {
+    fontSize: 24,
+  },
+  reactionPickerClose: {
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  reactionPickerCloseText: {
+    fontSize: 14,
+    fontWeight: "500",
   },
   // New: recording HUD overlay at bottom (timer + hint)
   recordHud: {

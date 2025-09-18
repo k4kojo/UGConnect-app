@@ -12,9 +12,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Colors from '@/constants/colors';
 import { useThemeContext } from '@/context/ThemeContext';
-import { useMedications, useUpcomingReminders } from '@/hooks/useCache';
+import { useMedications, useUpcomingReminders, useOverallAdherence } from '@/hooks/useCache';
+import { medicationService } from '@/services/medicationService';
 import MedicationCard from '@/components/medication/MedicationCard';
 import EmptyState from '@/components/EmptyState';
+import { MedicationCardSkeleton, StatsCardSkeleton } from '@/components/SkeletonLoader';
 import LoaderComponent from '@/components/loader.component';
 import TopHeader from '@/components/top-header.component';
 import { Medication } from '@/services/medicationService';
@@ -168,7 +170,20 @@ export default function MedicationsTab() {
     return (
       <View style={[styles.container, { backgroundColor: themeColors.background }]}>
         <TopHeader screen="medications" />
-        <LoaderComponent />
+        <View style={styles.skeletonContainer}>
+          {/* Stats Skeleton */}
+          <View style={styles.statsContainer}>
+            <StatsCardSkeleton />
+            <StatsCardSkeleton />
+            <StatsCardSkeleton />
+          </View>
+          
+          {/* Medication Cards Skeleton */}
+          <MedicationCardSkeleton />
+          <MedicationCardSkeleton />
+          <MedicationCardSkeleton />
+          <MedicationCardSkeleton />
+        </View>
       </View>
     );
   }
@@ -233,6 +248,10 @@ export default function MedicationsTab() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  skeletonContainer: {
+    flex: 1,
+    paddingTop: 20,
   },
   headerContainer: {
     marginTop: 10,

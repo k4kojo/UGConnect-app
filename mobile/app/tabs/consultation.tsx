@@ -1,39 +1,28 @@
 import React, { useEffect, useState } from "react";
 
-import ConsultationInfo from "@/components/consultation/consultationInfo.component";
-import NotesAndRecordings from "@/components/consultation/notesAndRecordings";
-import Participants from "@/components/consultation/participants.component";
-import Tabs from "@/components/consultation/tabs.component";
 import TopHeader from "@/components/top-header.component";
 import Colors from "@/constants/colors";
 import { useThemeContext } from "@/context/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
 import EmptyState from "@/components/EmptyState";
 import { useAppointments, useDoctors } from "@/hooks/useCache";
+import { ConsultationItemSkeleton } from "@/components/SkeletonLoader";
+import ConsultationModal from "@/components/modals/consultationModal";
 import { Ionicons } from "@expo/vector-icons";
 import {
   FlatList,
-  Modal,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 
-const TABS = [
-  { label: "Overview" },
-  { label: "Prescriptions", count: 2 },
-  { label: "Lab Results", count: 2 },
-  { label: "Chat" },
-];
-
 const Consultation = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [tab, setTab] = useState(0);
   const [selectedConsultationId, setSelectedConsultationId] = useState<string | null>(null);
+  const [selectedConsultation, setSelectedConsultation] = useState<any>(null);
 
   const { theme } = useThemeContext();
   const themeColors = Colors[theme];
@@ -54,9 +43,16 @@ const Consultation = () => {
 
   const isLoading = appointmentsLoading || doctorsLoading;
 
-  const openModal = (consultationId?: string) => {
+  const openModal = (consultationId?: string, consultationData?: any) => {
     setSelectedConsultationId(consultationId || null);
+    setSelectedConsultation(consultationData || null);
     setModalVisible(true);
+  };
+
+  const closeModal = () => {
+    setModalVisible(false);
+    setSelectedConsultationId(null);
+    setSelectedConsultation(null);
   };
 
   const onRefresh = React.useCallback(async () => {
@@ -80,16 +76,29 @@ const Consultation = () => {
       <View
         style={[styles.content, { backgroundColor: themeColors.background }]}
       >
-        {/* Consultation History */}
-        <Text style={[styles.sectionTitle, { color: themeColors.text }]}>
-          Consultation History
-        </Text>
+        {/* Header Section */}
+        <View style={styles.headerSection}>
+          <View style={styles.headerContent}>
+            <View style={[styles.headerIcon, { backgroundColor: brandColors.primary + '15' }]}>
+              <Ionicons name="medical" size={24} color={brandColors.primary} />
+            </View>
+            <View style={styles.headerText}>
+              <Text style={[styles.sectionTitle, { color: themeColors.text }]}>
+                Consultation History
+              </Text>
+              <Text style={[styles.sectionSubtitle, { color: themeColors.subText }]}>
+                View your past consultations and medical records
+              </Text>
+            </View>
+          </View>
+        </View>
         
         {isLoading ? (
-          <View style={styles.loadingContainer}>
-            <Text style={[styles.loadingText, { color: themeColors.subText }]}>
-              Loading consultations...
-            </Text>
+          <View style={styles.skeletonContainer}>
+            <ConsultationItemSkeleton />
+            <ConsultationItemSkeleton />
+            <ConsultationItemSkeleton />
+            <ConsultationItemSkeleton />
           </View>
         ) : appointments && appointments.length > 0 ? (
           <FlatList
@@ -129,7 +138,7 @@ const Consultation = () => {
               />
             }
             renderItem={({ item }) => (
-              <View
+              <TouchableOpacity
                 style={[
                   styles.historyItem,
                   {
@@ -137,27 +146,43 @@ const Consultation = () => {
                     borderColor: themeColors.border,
                   },
                 ]}
+                onPress={() => openModal(item.id, { 
+                  doctor: item.doctor, 
+                  date: item.date,
+                  appointment: item.appointment 
+                })}
+                activeOpacity={0.7}
               >
-                <View>
-                  <Text
-                    style={[styles.historyDoctor, { color: themeColors.text }]}
-                  >
-                    {item.doctor}
-                  </Text>
-                  <Text
-                    style={[styles.historyDate, { color: themeColors.subText }]}
-                  >
-                    {item.date}
-                  </Text>
+                <View style={styles.historyContent}>
+                  <View style={styles.historyLeft}>
+                    <View style={[styles.doctorAvatar, { backgroundColor: brandColors.primary + '15' }]}>
+                      <Ionicons name="person" size={20} color={brandColors.primary} />
+                    </View>
+                    <View style={styles.historyInfo}>
+                      <Text
+                        style={[styles.historyDoctor, { color: themeColors.text }]}
+                      >
+                        {item.doctor}
+                      </Text>
+                      <Text
+                        style={[styles.historyDate, { color: themeColors.subText }]}
+                      >
+                        {item.date}
+                      </Text>
+                      <View style={styles.statusContainer}>
+                        <View style={[styles.statusBadge, { backgroundColor: '#4CAF5015' }]}>
+                          <Text style={[styles.statusText, { color: '#4CAF50' }]}>
+                            Completed
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={styles.historyRight}>
+                    <Ionicons name="chevron-forward" size={20} color={themeColors.subText} />
+                  </View>
                 </View>
-                <TouchableOpacity onPress={() => openModal(item.id)}>
-                  <Text
-                    style={[styles.viewSummary, { color: brandColors.primary }]}
-                  >
-                    View summary
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
             )}
           />
         ) : (
@@ -167,81 +192,13 @@ const Consultation = () => {
           />
         )}
       </View>
-      <Modal
+      
+      <ConsultationModal
         visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <View style={styles.overlay}>
-          <View
-            style={[styles.modal, { backgroundColor: themeColors.background }]}
-          >
-            <TouchableOpacity
-              onPress={() => setModalVisible(false)}
-              style={styles.closeBtn}
-            >
-              <Ionicons name="close" size={30} color={themeColors.text} />
-            </TouchableOpacity>
-            <View style={{ marginBottom: 20 }}>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 7,
-                  marginBottom: 5,
-                  marginLeft: -5,
-                }}
-              >
-                <Ionicons
-                  name="document-text-outline"
-                  size={35}
-                  color={themeColors.text}
-                  style={{ fontWeight: "bold" }}
-                />
-                <Text
-                  style={{
-                    color: themeColors.text,
-                    fontSize: 25,
-                    fontWeight: "bold",
-                  }}
-                >
-                  Consultation Details
-                </Text>
-              </View>
-              <Text style={{ color: themeColors.subText }}>
-                Consultation with Dr. Kofi Mensah
-              </Text>
-            </View>
-
-            {/* Tab Bar */}
-            <Tabs TABS={TABS} tab={tab} setTab={setTab} />
-
-            {/* Tab Content */}
-            <ScrollView
-              style={{ flex: 1, width: "100%" }}
-              contentContainerStyle={{
-                paddingBottom: 32,
-                alignItems: "center",
-              }}
-              showsVerticalScrollIndicator={false}
-            >
-              <ConsultationInfo tab={tab} consultationId={selectedConsultationId || undefined} />
-              <Participants tab={tab} />
-              <NotesAndRecordings
-                tab={tab}
-                title="Clinical Notes"
-                content="Patient reports improved blood pressure readings. Continue current medication regimen. Recommended lifestyle modifications including regular exercise and reduced sodium intake. Schedule follow-up in 4 weeks."
-              />
-              <NotesAndRecordings tab={tab} title="Consultation Recordings">
-                <View style={styles.customContent}>
-                  <Text>I am tired</Text>
-                </View>
-              </NotesAndRecordings>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+        onClose={closeModal}
+        consultation={selectedConsultation}
+        selectedConsultationId={selectedConsultationId}
+      />
     </View>
   );
 };
@@ -254,58 +211,95 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingTop: 30,
+    paddingTop: 20,
     paddingHorizontal: 20,
   },
+  headerSection: {
+    marginBottom: 24,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  headerText: {
+    flex: 1,
+  },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 10,
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  skeletonContainer: {
+    flex: 1,
   },
   historyItem: {
     borderWidth: 1,
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  historyContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  historyLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  doctorAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  historyInfo: {
+    flex: 1,
   },
   historyDoctor: {
+    fontSize: 16,
     fontWeight: "600",
-    marginBottom: 3,
+    marginBottom: 4,
   },
   historyDate: {
-    fontSize: 13,
-  },
-  viewSummary: {
-    fontWeight: "500",
-  },
-  overlay: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modal: {
-    width: "100%",
-    height: "100%",
-    padding: 20,
-  },
-  closeBtn: {
-    alignSelf: "flex-end",
-  },
-  customContent: {
-    width: 328,
-    height: 100,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 6,
-  },
-  loadingContainer: {
-    alignItems: "center",
-    paddingVertical: 40,
-  },
-  loadingText: {
     fontSize: 14,
+    fontWeight: "500",
+    marginBottom: 6,
+  },
+  statusContainer: {
+    flexDirection: 'row',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: 'uppercase',
+  },
+  historyRight: {
+    marginLeft: 12,
   },
 });

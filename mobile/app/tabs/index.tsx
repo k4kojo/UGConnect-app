@@ -23,8 +23,11 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  Text,
+  TouchableOpacity,
   View
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
 const SWIPE_THRESHOLD = 50; // Minimum swipe distance to trigger menu
@@ -42,6 +45,15 @@ const Dashboard = () => {
   const { data: appointmentsData, loading: appointmentsLoading, refresh: refreshAppointments } = useAppointments({ limit: 5 });
   const { data: doctorsData, refresh: refreshDoctors } = useDoctors();
   const { data: profileData, refresh: refreshProfile } = usePatientProfile();
+  
+  // Mock medication data - replace with actual medication hook when available
+  const medicationsData = useMemo(() => [
+    { id: 1, name: 'Aspirin', dosage: '100mg', frequency: 'Daily', status: 'active', adherence: 85, nextDose: new Date(Date.now() + 2 * 60 * 60 * 1000) },
+    { id: 2, name: 'Metformin', dosage: '500mg', frequency: 'Twice daily', status: 'active', adherence: 92, nextDose: new Date(Date.now() + 4 * 60 * 60 * 1000) },
+    { id: 3, name: 'Lisinopril', dosage: '10mg', frequency: 'Daily', status: 'active', adherence: 78, nextDose: new Date(Date.now() + 6 * 60 * 60 * 1000) },
+    { id: 4, name: 'Vitamin D', dosage: '1000 IU', frequency: 'Daily', status: 'paused', adherence: 65, nextDose: null },
+    { id: 5, name: 'Omeprazole', dosage: '20mg', frequency: 'Daily', status: 'completed', adherence: 95, nextDose: null },
+  ], []);
   const { theme, toggleTheme } = useThemeContext();
   const themeColors = Colors[theme];
   const brandColors = Colors.brand;
@@ -93,6 +105,7 @@ const Dashboard = () => {
         refreshAppointments(),
         refreshDoctors(),
         refreshProfile()
+        // Add medication refresh when medication hook is available
       ]);
     } finally {
       setRefreshing(false);
@@ -185,6 +198,46 @@ const Dashboard = () => {
       },
     })
   ).current;
+
+  // Medication analytics and data processing
+  const medicationAnalytics = useMemo(() => {
+    if (!medicationsData) return {
+      totalMedications: 0,
+      activeMedications: 0,
+      pausedMedications: 0,
+      completedMedications: 0,
+      averageAdherence: 0,
+      dueSoon: 0,
+      highAdherence: 0,
+      lowAdherence: 0
+    };
+
+    const now = Date.now();
+    const nextHour = now + (60 * 60 * 1000); // Next hour
+
+    const active = medicationsData.filter((m: any) => m.status === 'active');
+    const paused = medicationsData.filter((m: any) => m.status === 'paused');
+    const completed = medicationsData.filter((m: any) => m.status === 'completed');
+    const dueSoon = medicationsData.filter((m: any) => 
+      m.nextDose && new Date(m.nextDose).getTime() <= nextHour
+    );
+    const highAdherence = medicationsData.filter((m: any) => m.adherence >= 80);
+    const lowAdherence = medicationsData.filter((m: any) => m.adherence < 80);
+
+    const totalAdherence = medicationsData.reduce((sum: number, m: any) => sum + m.adherence, 0);
+    const averageAdherence = medicationsData.length > 0 ? Math.round(totalAdherence / medicationsData.length) : 0;
+
+    return {
+      totalMedications: medicationsData.length,
+      activeMedications: active.length,
+      pausedMedications: paused.length,
+      completedMedications: completed.length,
+      averageAdherence,
+      dueSoon: dueSoon.length,
+      highAdherence: highAdherence.length,
+      lowAdherence: lowAdherence.length
+    };
+  }, [medicationsData]);
 
   // Process cached appointments data
   const appointments = useMemo(() => {
@@ -318,6 +371,113 @@ const Dashboard = () => {
 
           <QuickActionsSection themeColors={themeColors} />
 
+          {/* Medication Analytics Dashboard */}
+          <View style={styles.analyticsSection}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderText}>
+                <Text style={[styles.sectionTitle, { color: themeColors.text }]}>
+                  Medication Overview
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.analyticsGrid}>
+              <TouchableOpacity 
+                style={[styles.analyticsCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
+                onPress={() => router.push("/tabs/medications")}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.analyticsIcon, { backgroundColor: '#4CAF5015' }]}>
+                  <Ionicons name="medical-outline" size={18} color="#4CAF50" />
+                </View>
+                <Text style={[styles.analyticsNumber, { color: themeColors.text }]}>
+                  {medicationAnalytics.activeMedications}
+                </Text>
+                <Text style={[styles.analyticsLabel, { color: themeColors.subText }]}>
+                  Active
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.analyticsCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
+                onPress={() => router.push("/tabs/medications")}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.analyticsIcon, { backgroundColor: '#FF980015' }]}>
+                  <Ionicons name="time" size={18} color="#FF9800" />
+                </View>
+                <Text style={[styles.analyticsNumber, { color: themeColors.text }]}>
+                  {medicationAnalytics.dueSoon}
+                </Text>
+                <Text style={[styles.analyticsLabel, { color: themeColors.subText }]}>
+                  Due Soon
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.analyticsCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
+                onPress={() => router.push("/tabs/medications")}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.analyticsIcon, { backgroundColor: '#2196F315' }]}>
+                  <Ionicons name="trending-up" size={18} color="#2196F3" />
+                </View>
+                <Text style={[styles.analyticsNumber, { color: themeColors.text }]}>
+                  {medicationAnalytics.averageAdherence}%
+                </Text>
+                <Text style={[styles.analyticsLabel, { color: themeColors.subText }]}>
+                  Adherence
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.analyticsCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
+                onPress={() => router.push("/tabs/medications")}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.analyticsIcon, { backgroundColor: '#9C27B015' }]}>
+                  <Ionicons name="pause-circle" size={18} color="#9C27B0" />
+                </View>
+                <Text style={[styles.analyticsNumber, { color: themeColors.text }]}>
+                  {medicationAnalytics.pausedMedications}
+                </Text>
+                <Text style={[styles.analyticsLabel, { color: themeColors.subText }]}>
+                  Paused
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Medication Adherence Overview */}
+            <View style={[styles.healthStatusCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+              <View style={styles.healthStatusHeader}>
+                <View style={[styles.healthStatusIcon, { backgroundColor: brandColors.primary + '15' }]}>
+                  <Ionicons name="pulse" size={16} color={brandColors.primary} />
+                </View>
+                <Text style={[styles.healthStatusTitle, { color: themeColors.text }]}>
+                  Adherence Status
+                </Text>
+              </View>
+              <View style={styles.healthStatusContent}>
+                <View style={styles.statusItem}>
+                  <View style={styles.statusIndicator}>
+                    <View style={[styles.statusDot, { backgroundColor: '#4CAF50' }]} />
+                    <Text style={[styles.statusText, { color: themeColors.subText }]}>
+                      {medicationAnalytics.highAdherence} High (≥80%)
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.statusItem}>
+                  <View style={styles.statusIndicator}>
+                    <View style={[styles.statusDot, { backgroundColor: '#FF9800' }]} />
+                    <Text style={[styles.statusText, { color: themeColors.subText }]}>
+                      {medicationAnalytics.lowAdherence} Low (&lt;80%)
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
+
           <Section
             title={t("home.upcomingAppointments")}
             emptyMessage={t("appointments.noPending")}
@@ -351,11 +511,121 @@ const styles = StyleSheet.create({
     paddingVertical: 30,
     paddingHorizontal: 20,
   },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: "600",
+  analyticsSection: {
     marginTop: 30,
-    marginBottom: 10,
+    marginBottom: 30,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  sectionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  sectionHeaderText: {
+    flex: 1,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  analyticsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 20,
+  },
+  analyticsCard: {
+    flex: 1,
+    minWidth: '47%',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  analyticsIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  analyticsNumber: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  analyticsLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  healthStatusCard: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  healthStatusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  healthStatusIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  healthStatusTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  healthStatusContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  statusItem: {
+    alignItems: 'center',
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   overlay: {
     position: "absolute",

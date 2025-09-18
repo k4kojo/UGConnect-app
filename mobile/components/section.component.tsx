@@ -63,12 +63,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   title: {
-    fontSize: 17,
-    fontWeight: "600",
+    fontSize: 18,
+    fontWeight: "700",
   },
   viewAll: {
-    fontWeight: "500",
-    fontSize: 14,
+    fontWeight: "600",
+    fontSize: 15,
   },
   emptyBox: {
     borderRadius: 10,

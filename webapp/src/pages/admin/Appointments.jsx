@@ -1,46 +1,59 @@
 import {
-    Calendar,
-    Clock,
-    Edit,
-    Eye,
-    MessageCircle,
-    Phone,
-    Plus,
-    Search,
-    Trash2,
-    Video
-} from 'lucide-react';
-import React, { useEffect, useState } from 'react';
-import { toast } from 'react-hot-toast';
-import { UserAvatar } from '../../components/shared';
-import { Button, TopLoadingBar } from '../../components/ui';
-import { useAuth } from '../../contexts/AuthContext';
-import { useData } from '../../contexts/DataContext';
+  Calendar,
+  Clock,
+  Edit,
+  Eye,
+  MessageCircle,
+  Phone,
+  Plus,
+  Search,
+  Trash2,
+  Video,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "react-hot-toast";
+import { UserAvatar } from "../../components/shared";
+import { Button, TopLoadingBar } from "../../components/ui";
+import { useAuth } from "../../contexts/AuthContext";
+import { useData } from "../../contexts/DataContext";
 
 const Appointments = () => {
   const { user } = useAuth();
-  const { data, loading, error, fetchAdminAppointments, fetchDoctorAppointments } = useData();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedDate, setSelectedDate] = useState('');
+  const {
+    data,
+    loading,
+    error,
+    fetchAdminAppointments,
+    fetchDoctorAppointments,
+  } = useData();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedDate, setSelectedDate] = useState("");
 
   // Use cached appointments data based on user role
-  const appointments = user?.role === 'doctor' 
-    ? (data.doctorAppointments || [])
-    : (data.adminAppointments || []);
+  const appointments =
+    user?.role === "doctor"
+      ? data.doctorAppointments || []
+      : data.adminAppointments || [];
 
   // Load appointments if not already cached
   useEffect(() => {
-    if (user?.role === 'doctor') {
+    if (user?.role === "doctor") {
       if (!data.doctorAppointments) {
         fetchDoctorAppointments();
       }
-    } else if (user?.role === 'admin') {
+    } else if (user?.role === "admin") {
       if (!data.adminAppointments) {
         fetchAdminAppointments();
       }
     }
-  }, [data.doctorAppointments, data.adminAppointments, fetchDoctorAppointments, fetchAdminAppointments, user?.role]);
+  }, [
+    data.doctorAppointments,
+    data.adminAppointments,
+    fetchDoctorAppointments,
+    fetchAdminAppointments,
+    user?.role,
+  ]);
 
   // Show error toast if there's an error, but only for critical errors
   useEffect(() => {
@@ -49,80 +62,96 @@ const Appointments = () => {
       toast.error(error);
     } else if (error && appointments.length > 0) {
       // If we have data but there was an error, show a warning instead
-      console.warn('Non-critical error while fetching appointments:', error);
-      toast.warning('Some appointment data may be incomplete');
+      console.warn("Non-critical error while fetching appointments:", error);
+      toast.warning("Some appointment data may be incomplete");
     }
   }, [error, appointments.length]);
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'confirmed': return 'bg-green-100 text-green-800';
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'completed': return 'bg-blue-100 text-blue-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case "confirmed":
+        return "bg-green-100 text-green-800";
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
+      case "completed":
+        return "bg-blue-100 text-blue-800";
+      case "cancelled":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
-  const filteredAppointments = appointments.filter(appointment => {
-    const patientName = `${appointment.patientFirstName || ''} ${appointment.patientLastName || ''}`.trim();
-    const doctorName = `${appointment.doctorFirstName || ''} ${appointment.doctorLastName || ''}`.trim();
-    
-    const matchesSearch = patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         doctorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         appointment.reasonForVisit?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'all' || appointment.status === statusFilter;
-    
-    const matchesDate = !selectedDate || new Date(appointment.appointmentDate).toDateString() === new Date(selectedDate).toDateString();
-    
+  const filteredAppointments = appointments.filter((appointment) => {
+    const patientName = `${appointment.patientFirstName || ""} ${
+      appointment.patientLastName || ""
+    }`.trim();
+    const doctorName = `${appointment.doctorFirstName || ""} ${
+      appointment.doctorLastName || ""
+    }`.trim();
+
+    const matchesSearch =
+      patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      doctorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      appointment.reasonForVisit
+        ?.toLowerCase()
+        .includes(searchTerm.toLowerCase());
+
+    const matchesStatus =
+      statusFilter === "all" || appointment.status === statusFilter;
+
+    const matchesDate =
+      !selectedDate ||
+      new Date(appointment.appointmentDate).toDateString() ===
+        new Date(selectedDate).toDateString();
+
     return matchesSearch && matchesStatus && matchesDate;
   });
 
   const handleViewAppointment = (appointment) => {
-    console.log('View appointment:', appointment);
+    console.log("View appointment:", appointment);
     // Implement view appointment modal
   };
 
   const handleEditAppointment = (appointment) => {
-    console.log('Edit appointment:', appointment);
+    console.log("Edit appointment:", appointment);
     // Implement edit appointment modal
   };
 
   const handleDeleteAppointment = async (appointment) => {
-    if (window.confirm('Are you sure you want to delete this appointment?')) {
+    if (window.confirm("Are you sure you want to delete this appointment?")) {
       try {
-        console.log('Deleting appointment:', appointment);
+        console.log("Deleting appointment:", appointment);
         // Refresh the list based on user role
-        if (user?.role === 'doctor') {
+        if (user?.role === "doctor") {
           await fetchDoctorAppointments(true);
         } else {
           await fetchAdminAppointments(true);
         }
       } catch (err) {
-        toast.error('Failed to delete appointment');
-        console.error('Error deleting appointment:', err);
+        toast.error("Failed to delete appointment");
+        console.error("Error deleting appointment:", err);
       }
     }
   };
 
   const handleNewAppointment = () => {
-    console.log('Create new appointment');
+    console.log("Create new appointment");
     // Implement new appointment modal
   };
 
   const handleStartSession = (appointment) => {
-    console.log('Start consultation session:', appointment);
+    console.log("Start consultation session:", appointment);
     // Navigate to consultation room
   };
 
   const handleSendMessage = (appointment) => {
-    console.log('Send message to patient:', appointment);
+    console.log("Send message to patient:", appointment);
     // Navigate to chat
   };
 
-  const isDoctor = user?.role === 'doctor';
-  const isAdmin = user?.role === 'admin';
+  const isDoctor = user?.role === "doctor";
+  const isAdmin = user?.role === "admin";
 
   if (loading) {
     return (
@@ -143,18 +172,23 @@ const Appointments = () => {
               <div className="h-5 w-5 text-red-400">⚠️</div>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">Error Loading Appointments</h3>
+              <h3 className="text-sm font-medium text-red-800">
+                Error Loading Appointments
+              </h3>
               <div className="mt-2 text-sm text-red-700">
                 <p>{error}</p>
               </div>
               <div className="mt-4">
-                <Button variant="outline" onClick={() => {
-                  if (user?.role === 'doctor') {
-                    fetchDoctorAppointments(true);
-                  } else {
-                    fetchAdminAppointments(true);
-                  }
-                }}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (user?.role === "doctor") {
+                      fetchDoctorAppointments(true);
+                    } else {
+                      fetchAdminAppointments(true);
+                    }
+                  }}
+                >
                   Try Again
                 </Button>
               </div>
@@ -175,18 +209,24 @@ const Appointments = () => {
               <div className="h-5 w-5 text-yellow-400">⚠️</div>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-yellow-800">Partial Data Warning</h3>
+              <h3 className="text-sm font-medium text-yellow-800">
+                Partial Data Warning
+              </h3>
               <div className="mt-2 text-sm text-yellow-700">
                 <p>Some appointment data may be incomplete: {error}</p>
               </div>
               <div className="mt-4">
-                <Button variant="outline" size="sm" onClick={() => {
-                  if (user?.role === 'doctor') {
-                    fetchDoctorAppointments(true);
-                  } else {
-                    fetchAdminAppointments(true);
-                  }
-                }}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (user?.role === "doctor") {
+                      fetchDoctorAppointments(true);
+                    } else {
+                      fetchAdminAppointments(true);
+                    }
+                  }}
+                >
                   Refresh Data
                 </Button>
               </div>
@@ -194,26 +234,21 @@ const Appointments = () => {
           </div>
         </div>
       )}
-      
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {isDoctor ? 'My Appointments' : 'Appointments'}
+            {isDoctor ? "My Appointments" : "Appointments"}
           </h1>
           <p className="text-gray-600">
-            {isDoctor 
-              ? 'Manage your patient appointments and consultations'
-              : 'Manage all appointments in the system'
-            }
+            {isDoctor
+              ? "Manage your patient appointments and consultations"
+              : "Manage all appointments in the system"}
           </p>
         </div>
         {isAdmin && (
-          <Button
-            variant="primary"
-            icon={Plus}
-            onClick={handleNewAppointment}
-          >
+          <Button variant="primary" icon={Plus} onClick={handleNewAppointment}>
             New Appointment
           </Button>
         )}
@@ -259,9 +294,9 @@ const Appointments = () => {
           <Button
             variant="outline"
             onClick={() => {
-              setSearchTerm('');
-              setStatusFilter('all');
-              setSelectedDate('');
+              setSearchTerm("");
+              setStatusFilter("all");
+              setSelectedDate("");
             }}
           >
             Clear Filters
@@ -276,7 +311,7 @@ const Appointments = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {isDoctor ? 'Patient' : 'Patient'}
+                  {isDoctor ? "Patient" : "Patient"}
                 </th>
                 {!isDoctor && (
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -299,64 +334,82 @@ const Appointments = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredAppointments.map((appointment) => {
-                const patientName = `${appointment.patientFirstName || ''} ${appointment.patientLastName || ''}`.trim();
-                const doctorName = `${appointment.doctorFirstName || ''} ${appointment.doctorLastName || ''}`.trim();
-                
+                const patientName = `${appointment.patientFirstName || ""} ${
+                  appointment.patientLastName || ""
+                }`.trim();
+                const doctorName = `${appointment.doctorFirstName || ""} ${
+                  appointment.doctorLastName || ""
+                }`.trim();
+
                 // Safe date handling
                 let appointmentDate, formattedDate, formattedTime;
                 try {
                   appointmentDate = new Date(appointment.appointmentDate);
                   if (isNaN(appointmentDate.getTime())) {
-                    throw new Error('Invalid date');
+                    throw new Error("Invalid date");
                   }
                   formattedDate = appointmentDate.toLocaleDateString();
-                  formattedTime = appointmentDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  formattedTime = appointmentDate.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
                 } catch (error) {
                   appointmentDate = new Date();
-                  formattedDate = 'Invalid Date';
-                  formattedTime = '--:--';
+                  formattedDate = "Invalid Date";
+                  formattedTime = "--:--";
                 }
-                
+
                 return (
-                  <tr key={appointment.appointmentId} className="hover:bg-gray-50">
+                  <tr
+                    key={appointment.appointmentId}
+                    className="hover:bg-gray-50"
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
                           <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                            <UserAvatar 
-                              user={{ 
-                                first_name: appointment.patientFirstName || 'P', 
-                                last_name: appointment.patientLastName || 'atient' 
-                              }} 
-                              size="sm" 
+                            <UserAvatar
+                              user={{
+                                first_name: appointment.patientFirstName || "P",
+                                last_name:
+                                  appointment.patientLastName || "atient",
+                              }}
+                              size="sm"
                             />
                           </div>
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">
-                            {patientName || 'Unknown Patient'}
+                            {patientName || "Unknown Patient"}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {appointment.patientEmail || 'No email'}
+                            {appointment.patientEmail || "No email"}
                           </div>
                           <div className="text-sm text-gray-500 flex items-center">
                             <Phone className="h-3 w-3 mr-1" />
-                            {appointment.patientPhoneNumber || 'No phone'}
+                            {appointment.patientPhoneNumber || "No phone"}
                           </div>
                         </div>
                       </div>
                     </td>
                     {!isDoctor && (
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{doctorName || 'Unknown Doctor'}</div>
-                        <div className="text-sm text-gray-500">{appointment.doctorSpecialization || 'No specialization'}</div>
+                        <div className="text-sm text-gray-900">
+                          {doctorName || "Unknown Doctor"}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {appointment.doctorSpecialization ||
+                            "No specialization"}
+                        </div>
                       </td>
                     )}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <Calendar className="h-4 w-4 text-gray-400 mr-2" />
                         <div>
-                          <div className="text-sm text-gray-900">{formattedDate}</div>
+                          <div className="text-sm text-gray-900">
+                            {formattedDate}
+                          </div>
                           <div className="text-sm text-gray-500 flex items-center">
                             <Clock className="h-3 w-3 mr-1" />
                             {formattedTime}
@@ -365,11 +418,19 @@ const Appointments = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{appointment.appointmentMode || 'Online'}</div>
-                      <div className="text-sm text-gray-500">{appointment.reasonForVisit || 'No reason specified'}</div>
+                      <div className="text-sm text-gray-900">
+                        {appointment.appointmentMode || "Online"}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {appointment.reasonForVisit || "No reason specified"}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(appointment.status)}`}>
+                      <span
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
+                          appointment.status
+                        )}`}
+                      >
                         {appointment.status}
                       </span>
                     </td>
@@ -382,8 +443,8 @@ const Appointments = () => {
                         >
                           <Eye className="h-4 w-4" />
                         </button>
-                        
-                        {isDoctor && appointment.status === 'confirmed' && (
+
+                        {isDoctor && appointment.status === "confirmed" && (
                           <>
                             <button
                               onClick={() => handleStartSession(appointment)}
@@ -401,8 +462,9 @@ const Appointments = () => {
                             </button>
                           </>
                         )}
-                        
-                        {(isAdmin || (isDoctor && appointment.status === 'pending')) && (
+
+                        {(isAdmin ||
+                          (isDoctor && appointment.status === "pending")) && (
                           <button
                             onClick={() => handleEditAppointment(appointment)}
                             className="text-green-600 hover:text-green-900"
@@ -411,7 +473,7 @@ const Appointments = () => {
                             <Edit className="h-4 w-4" />
                           </button>
                         )}
-                        
+
                         {isAdmin && (
                           <button
                             onClick={() => handleDeleteAppointment(appointment)}
@@ -434,26 +496,30 @@ const Appointments = () => {
         {filteredAppointments.length === 0 && (
           <div className="text-center py-12">
             <Calendar className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No appointments found</h3>
+            <h3 className="mt-2 text-sm font-medium text-gray-900">
+              No appointments found
+            </h3>
             <p className="mt-1 text-sm text-gray-500">
-              {searchTerm || statusFilter !== 'all' || selectedDate 
-                ? 'Try adjusting your search or filters.'
-                : isDoctor 
-                  ? 'You have no appointments scheduled.'
-                  : 'Get started by creating a new appointment.'
-              }
+              {searchTerm || statusFilter !== "all" || selectedDate
+                ? "Try adjusting your search or filters."
+                : isDoctor
+                ? "You have no appointments scheduled."
+                : "Get started by creating a new appointment."}
             </p>
-            {!searchTerm && statusFilter === 'all' && !selectedDate && isAdmin && (
-              <div className="mt-6">
-                <Button
-                  variant="primary"
-                  icon={Plus}
-                  onClick={handleNewAppointment}
-                >
-                  New Appointment
-                </Button>
-              </div>
-            )}
+            {!searchTerm &&
+              statusFilter === "all" &&
+              !selectedDate &&
+              isAdmin && (
+                <div className="mt-6">
+                  <Button
+                    variant="primary"
+                    icon={Plus}
+                    onClick={handleNewAppointment}
+                  >
+                    New Appointment
+                  </Button>
+                </div>
+              )}
           </div>
         )}
       </div>
@@ -482,7 +548,7 @@ const Appointments = () => {
             </div>
             <div className="ml-4">
               <div className="text-2xl font-bold text-gray-900">
-                {appointments.filter(a => a.status === 'confirmed').length}
+                {appointments.filter((a) => a.status === "confirmed").length}
               </div>
               <div className="text-sm text-gray-500">Confirmed</div>
             </div>
@@ -497,7 +563,7 @@ const Appointments = () => {
             </div>
             <div className="ml-4">
               <div className="text-2xl font-bold text-gray-900">
-                {appointments.filter(a => a.status === 'pending').length}
+                {appointments.filter((a) => a.status === "pending").length}
               </div>
               <div className="text-sm text-gray-500">Pending</div>
             </div>
@@ -512,7 +578,7 @@ const Appointments = () => {
             </div>
             <div className="ml-4">
               <div className="text-2xl font-bold text-gray-900">
-                {appointments.filter(a => a.status === 'completed').length}
+                {appointments.filter((a) => a.status === "completed").length}
               </div>
               <div className="text-sm text-gray-500">Completed</div>
             </div>

@@ -1,28 +1,21 @@
-import {
-  AlertCircle,
-  Edit,
-  Play,
-  Plus,
-  UserCheck,
-  Video
-} from 'lucide-react';
-import React, { useEffect, useState } from 'react';
-import { toast } from 'react-hot-toast';
+import { AlertCircle, Edit, Play, UserCheck, Video } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "react-hot-toast";
 import {
   ActionButtons,
   Modal,
   PageHeader,
   StatusBadge,
-  UserAvatar
-} from '../../components/shared';
-import { TopLoadingBar, Table } from '../../components/ui';
-import { useAuth } from '../../contexts/AuthContext';
-import { useData } from '../../contexts/DataContext';
+  UserAvatar,
+} from "../../components/shared";
+import { Table, TopLoadingBar } from "../../components/ui";
+// import { useAuth } from '../../contexts/AuthContext';
+import { useData } from "../../contexts/DataContext";
 
 const Consultations = () => {
-  const { user } = useAuth();
+  // const { user } = useAuth();
   const { data, loading, error, fetchAdminAppointments } = useData();
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterStatus, setFilterStatus] = useState("all");
   const [selectedConsultation, setSelectedConsultation] = useState(null);
   const [showModal, setShowModal] = useState(false);
 
@@ -44,122 +37,127 @@ const Consultations = () => {
   }, [error]);
 
   // Filter consultations based on status
-  const filteredConsultations = consultations.filter(consultation => {
-    const matchesStatus = filterStatus === 'all' || consultation.status === filterStatus;
+  const filteredConsultations = consultations.filter((consultation) => {
+    const matchesStatus =
+      filterStatus === "all" || consultation.status === filterStatus;
     return matchesStatus;
   });
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return 'N/A';
-      return date.toLocaleDateString('en-US', { 
-        day: 'numeric', 
-        month: 'short', 
-        year: 'numeric' 
-      });
-    } catch (error) {
-      return 'N/A';
-    }
-  };
+  // const formatDate = (dateString) => {
+  //   if (!dateString) return 'N/A';
+  //   try {
+  //     const date = new Date(dateString);
+  //     if (isNaN(date.getTime())) return 'N/A';
+  //     return date.toLocaleDateString('en-US', {
+  //       day: 'numeric',
+  //       month: 'short',
+  //       year: 'numeric'
+  //     });
+  //   } catch (error) {
+  //     return 'N/A';
+  //   }
+  // };
 
-  const formatTime = (dateString) => {
-    if (!dateString) return 'N/A';
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return 'N/A';
-      return date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      });
-    } catch (error) {
-      return 'N/A';
-    }
-  };
+  // const formatTime = (dateString) => {
+  //   if (!dateString) return 'N/A';
+  //   try {
+  //     const date = new Date(dateString);
+  //     if (isNaN(date.getTime())) return 'N/A';
+  //     return date.toLocaleTimeString('en-US', {
+  //       hour: '2-digit',
+  //       minute: '2-digit',
+  //       hour12: true
+  //     });
+  //   } catch (error) {
+  //     return 'N/A';
+  //   }
+  // };
 
   const formatDateTime = (dateString) => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return "N/A";
     try {
       const date = new Date(dateString);
-      if (isNaN(date.getTime())) return 'N/A';
-      const dateStr = date.toLocaleDateString('en-US', { 
-        day: 'numeric', 
-        month: 'short', 
-        year: 'numeric' 
+      if (isNaN(date.getTime())) return "N/A";
+      const dateStr = date.toLocaleDateString("en-US", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
       });
-      const timeStr = date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
+      const timeStr = date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
       });
       return `${dateStr}, ${timeStr}`;
     } catch (error) {
-      return 'N/A';
+      return "N/A";
     }
   };
 
   const formatDuration = (consultation) => {
-    if (!consultation) return '-';
-    
+    if (!consultation) return "-";
+
     // If consultation object has startTime and endTime, calculate duration
     if (consultation.startTime && consultation.endTime) {
       try {
         const start = new Date(consultation.startTime);
         const end = new Date(consultation.endTime);
-        
+
         if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
           const durationMs = end.getTime() - start.getTime();
           const durationMins = Math.round(durationMs / (1000 * 60));
           return `${durationMins} mins`;
         }
       } catch (error) {
-        console.warn('Error calculating duration from start/end time:', error);
+        console.warn("Error calculating duration from start/end time:", error);
       }
     }
-    
+
     // If startTime/endTime not available, try scheduledDate and completedAt
     if (consultation.scheduledDate && consultation.completedAt) {
       try {
         const start = new Date(consultation.scheduledDate);
         const end = new Date(consultation.completedAt);
-        
+
         if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
           const durationMs = end.getTime() - start.getTime();
           const durationMins = Math.round(durationMs / (1000 * 60));
           return `${durationMins} mins`;
         }
       } catch (error) {
-        console.warn('Error calculating duration from scheduled/completed time:', error);
+        console.warn(
+          "Error calculating duration from scheduled/completed time:",
+          error
+        );
       }
     }
-    
+
     // If duration is already provided as a field, use that
-    const duration = consultation.duration || 
-                    consultation.consultationDuration || 
-                    consultation.appointmentDuration;
-    
+    const duration =
+      consultation.duration ||
+      consultation.consultationDuration ||
+      consultation.appointmentDuration;
+
     if (duration) {
       // If duration is already a number, format it
-      if (typeof duration === 'number') {
+      if (typeof duration === "number") {
         return `${duration} mins`;
       }
       // If duration is a string, try to parse it
-      if (typeof duration === 'string') {
+      if (typeof duration === "string") {
         const parsed = parseInt(duration);
         if (!isNaN(parsed)) {
           return `${parsed} mins`;
         }
         // If it's already formatted, return as is
-        if (duration.includes('min') || duration.includes('mins')) {
+        if (duration.includes("min") || duration.includes("mins")) {
           return duration;
         }
       }
     }
-    
+
     // If no duration can be determined, show a dash
-    return '-';
+    return "-";
   };
 
   const handleViewConsultation = (consultation) => {
@@ -170,152 +168,185 @@ const Consultations = () => {
   const handleEditConsultation = async (consultation) => {
     try {
       // Navigate to consultation edit form
-      console.log('Editing consultation:', consultation.id);
+      console.log("Editing consultation:", consultation.id);
     } catch (err) {
-      console.error('Error editing consultation:', err);
+      console.error("Error editing consultation:", err);
     }
   };
 
   const handleStartConsultation = async (consultation) => {
     try {
-      console.log('Starting consultation:', consultation);
+      console.log("Starting consultation:", consultation);
       // Refresh appointments list
       fetchAdminAppointments(true);
     } catch (err) {
-      console.error('Error starting consultation:', err);
+      console.error("Error starting consultation:", err);
     }
   };
 
-  const handleNewConsultation = () => {
-    console.log('Creating new consultation');
-    // Navigate to consultation creation form
-  };
+  // const handleNewConsultation = () => {
+  //   console.log('Creating new consultation');
+  //   // Navigate to consultation creation form
+  // };
 
   const getConsultationTypeIcon = (type) => {
     switch (type) {
-      case 'Telemedicine': return <Video className="h-4 w-4" />;
-      case 'Emergency Consultation': return <AlertCircle className="h-4 w-4" />;
-      default: return <UserCheck className="h-4 w-4" />;
+      case "Telemedicine":
+        return <Video className="h-4 w-4" />;
+      case "Emergency Consultation":
+        return <AlertCircle className="h-4 w-4" />;
+      default:
+        return <UserCheck className="h-4 w-4" />;
     }
   };
 
   // Table columns configuration
   const columns = [
     {
-      key: 'patient',
-      header: 'Patient',
+      key: "patient",
+      header: "Patient",
       render: (consultation) => (
         <div className="flex items-center">
-          <UserAvatar user={{ first_name: consultation.patientFirstName || 'P', last_name: consultation.patientLastName || 'atient' }} size="sm" />
+          <UserAvatar
+            user={{
+              first_name: consultation.patientFirstName || "P",
+              last_name: consultation.patientLastName || "atient",
+            }}
+            size="sm"
+          />
           <div className="ml-4">
-            <div className="text-sm font-medium text-gray-900">{`${consultation.patientFirstName || ''} ${consultation.patientLastName || ''}`.trim()}</div>
+            <div className="text-sm font-medium text-gray-900">
+              {`${consultation.patientFirstName || ""} ${
+                consultation.patientLastName || ""
+              }`.trim()}
+            </div>
           </div>
         </div>
-      )
+      ),
     },
     {
-      key: 'doctorName',
-      header: 'Doctor',
-      render: (consultation) => <div className="text-sm text-gray-900">{`${consultation.doctorFirstName || ''} ${consultation.doctorLastName || ''}`.trim()}</div>
+      key: "doctorName",
+      header: "Doctor",
+      render: (consultation) => (
+        <div className="text-sm text-gray-900">
+          {`${consultation.doctorFirstName || ""} ${
+            consultation.doctorLastName || ""
+          }`.trim()}
+        </div>
+      ),
     },
     {
-      key: 'consultationType',
-      header: 'Type',
+      key: "consultationType",
+      header: "Type",
       render: (consultation) => (
         <div className="flex items-center space-x-2">
           {getConsultationTypeIcon(consultation.consultationType)}
-          <span className="text-sm text-gray-900">{consultation.consultationType}</span>
+          <span className="text-sm text-gray-900">
+            {consultation.consultationType}
+          </span>
         </div>
-      )
+      ),
     },
     {
-      key: 'scheduledDate',
-      header: 'Date & Time',
+      key: "scheduledDate",
+      header: "Date & Time",
       render: (consultation) => {
         // Try to get the consultation date from various possible fields
-        const consultationDate = consultation.scheduledDate || 
-                               consultation.appointmentDate || 
-                               consultation.consultationDate || 
-                               consultation.createdAt;
-        
+        const consultationDate =
+          consultation.scheduledDate ||
+          consultation.appointmentDate ||
+          consultation.consultationDate ||
+          consultation.createdAt;
+
         return (
           <div className="text-sm text-gray-900">
             {formatDateTime(consultationDate)}
           </div>
         );
-      }
+      },
     },
     {
-      key: 'duration',
-      header: 'Duration',
+      key: "duration",
+      header: "Duration",
       render: (consultation) => {
-        return <div className="text-sm text-gray-900">{formatDuration(consultation)}</div>;
-      }
+        return (
+          <div className="text-sm text-gray-900">
+            {formatDuration(consultation)}
+          </div>
+        );
+      },
     },
     {
-      key: 'status',
-      header: 'Status',
-      render: (consultation) => <StatusBadge status={consultation.status} />
+      key: "status",
+      header: "Status",
+      render: (consultation) => <StatusBadge status={consultation.status} />,
     },
     {
-      key: 'actions',
-      header: 'Actions',
+      key: "actions",
+      header: "Actions",
       render: (consultation) => (
         <ActionButtons
           actions={[
             {
-              type: 'view',
+              type: "view",
               onClick: () => handleViewConsultation(consultation),
-              tooltip: 'View Details'
+              tooltip: "View Details",
             },
-            ...(consultation.status === 'scheduled' ? [
-              {
-                type: 'start',
-                onClick: () => handleStartConsultation(consultation),
-                tooltip: 'Start Consultation'
-              }
-            ] : []),
+            ...(consultation.status === "scheduled"
+              ? [
+                  {
+                    type: "start",
+                    onClick: () => handleStartConsultation(consultation),
+                    tooltip: "Start Consultation",
+                  },
+                ]
+              : []),
             {
-              type: 'edit',
+              type: "edit",
               onClick: () => handleEditConsultation(consultation),
-              tooltip: 'Edit Consultation'
-            }
+              tooltip: "Edit Consultation",
+            },
           ]}
         />
-      )
-    }
+      ),
+    },
   ];
 
   // Status filter options for future use if needed
-  const statusOptions = [
-    { value: 'all', label: 'All Status' },
-    { value: 'scheduled', label: 'Scheduled' },
-    { value: 'completed', label: 'Completed' },
-    { value: 'in-progress', label: 'In Progress' },
-    { value: 'cancelled', label: 'Cancelled' }
-  ];
+  // const statusOptions = [
+  //   { value: 'all', label: 'All Status' },
+  //   { value: 'scheduled', label: 'Scheduled' },
+  //   { value: 'completed', label: 'Completed' },
+  //   { value: 'in-progress', label: 'In Progress' },
+  //   { value: 'cancelled', label: 'Cancelled' }
+  // ];
 
   // Modal actions configuration
   const modalActions = [
     {
-      label: 'Close',
-      variant: 'outline',
-      onClick: () => setShowModal(false)
+      label: "Close",
+      variant: "outline",
+      onClick: () => setShowModal(false),
     },
-    ...(selectedConsultation?.status === 'scheduled' ? [
-      {
-        label: 'Start Consultation',
-        variant: 'primary',
-        icon: Play,
-        onClick: () => selectedConsultation && handleStartConsultation(selectedConsultation)
-      }
-    ] : []),
+    ...(selectedConsultation?.status === "scheduled"
+      ? [
+          {
+            label: "Start Consultation",
+            variant: "primary",
+            icon: Play,
+            onClick: () =>
+              selectedConsultation &&
+              handleStartConsultation(selectedConsultation),
+          },
+        ]
+      : []),
     {
-      label: 'Edit',
-      variant: 'outline',
+      label: "Edit",
+      variant: "outline",
       icon: Edit,
-      onClick: () => selectedConsultation && handleEditConsultation(selectedConsultation)
-    }
+      onClick: () =>
+        selectedConsultation && handleEditConsultation(selectedConsultation),
+    },
   ];
 
   if (loading) {
@@ -367,22 +398,42 @@ const Consultations = () => {
                 {/* Basic Information */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <h3 className="text-sm font-medium text-gray-500">Patient</h3>
-                    <p className="text-sm text-gray-900">{`${selectedConsultation.patientFirstName || ''} ${selectedConsultation.patientLastName || ''}`.trim()}</p>
+                    <h3 className="text-sm font-medium text-gray-500">
+                      Patient
+                    </h3>
+                    <p className="text-sm text-gray-900">
+                      {`${selectedConsultation.patientFirstName || ""} ${
+                        selectedConsultation.patientLastName || ""
+                      }`.trim()}
+                    </p>
                   </div>
                   <div>
-                    <h3 className="text-sm font-medium text-gray-500">Doctor</h3>
-                    <p className="text-sm text-gray-900">{`${selectedConsultation.doctorFirstName || ''} ${selectedConsultation.doctorLastName || ''}`.trim()}</p>
+                    <h3 className="text-sm font-medium text-gray-500">
+                      Doctor
+                    </h3>
+                    <p className="text-sm text-gray-900">
+                      {`${selectedConsultation.doctorFirstName || ""} ${
+                        selectedConsultation.doctorLastName || ""
+                      }`.trim()}
+                    </p>
                   </div>
                   <div>
-                    <h3 className="text-sm font-medium text-gray-500">Consultation Type</h3>
+                    <h3 className="text-sm font-medium text-gray-500">
+                      Consultation Type
+                    </h3>
                     <div className="flex items-center space-x-2">
-                      {getConsultationTypeIcon(selectedConsultation.consultationType)}
-                      <span className="text-sm text-gray-900">{selectedConsultation.consultationType}</span>
+                      {getConsultationTypeIcon(
+                        selectedConsultation.consultationType
+                      )}
+                      <span className="text-sm text-gray-900">
+                        {selectedConsultation.consultationType}
+                      </span>
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-sm font-medium text-gray-500">Status</h3>
+                    <h3 className="text-sm font-medium text-gray-500">
+                      Status
+                    </h3>
                     <StatusBadge status={selectedConsultation.status} />
                   </div>
                 </div>
@@ -390,37 +441,66 @@ const Consultations = () => {
                 {/* Schedule Information */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <h3 className="text-sm font-medium text-gray-500">Scheduled Date</h3>
-                    <p className="text-sm text-gray-900">{formatDateTime(selectedConsultation.scheduledDate || selectedConsultation.appointmentDate || selectedConsultation.consultationDate || selectedConsultation.createdAt)}</p>
+                    <h3 className="text-sm font-medium text-gray-500">
+                      Scheduled Date
+                    </h3>
+                    <p className="text-sm text-gray-900">
+                      {formatDateTime(
+                        selectedConsultation.scheduledDate ||
+                          selectedConsultation.appointmentDate ||
+                          selectedConsultation.consultationDate ||
+                          selectedConsultation.createdAt
+                      )}
+                    </p>
                   </div>
                   <div>
-                    <h3 className="text-sm font-medium text-gray-500">Duration</h3>
-                    <p className="text-sm text-gray-900">{formatDuration(selectedConsultation)}</p>
+                    <h3 className="text-sm font-medium text-gray-500">
+                      Duration
+                    </h3>
+                    <p className="text-sm text-gray-900">
+                      {formatDuration(selectedConsultation)}
+                    </p>
                   </div>
                   <div>
-                    <h3 className="text-sm font-medium text-gray-500">Follow-up Date</h3>
-                    <p className="text-sm text-gray-900">{formatDateTime(selectedConsultation.followUpDate)}</p>
+                    <h3 className="text-sm font-medium text-gray-500">
+                      Follow-up Date
+                    </h3>
+                    <p className="text-sm text-gray-900">
+                      {formatDateTime(selectedConsultation.followUpDate)}
+                    </p>
                   </div>
                 </div>
 
                 {/* Medical Information */}
                 <div className="space-y-4">
                   <div>
-                    <h3 className="text-sm font-medium text-gray-500">Symptoms</h3>
-                    <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-lg">{selectedConsultation.symptoms}</p>
+                    <h3 className="text-sm font-medium text-gray-500">
+                      Symptoms
+                    </h3>
+                    <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-lg">
+                      {selectedConsultation.symptoms}
+                    </p>
                   </div>
-                  
+
                   {selectedConsultation.diagnosis && (
                     <div>
-                      <h3 className="text-sm font-medium text-gray-500">Diagnosis</h3>
-                      <p className="text-sm text-gray-900 bg-blue-50 p-3 rounded-lg">{selectedConsultation.diagnosis}</p>
+                      <h3 className="text-sm font-medium text-gray-500">
+                        Diagnosis
+                      </h3>
+                      <p className="text-sm text-gray-900 bg-blue-50 p-3 rounded-lg">
+                        {selectedConsultation.diagnosis}
+                      </p>
                     </div>
                   )}
-                  
+
                   {selectedConsultation.treatment && (
                     <div>
-                      <h3 className="text-sm font-medium text-gray-500">Treatment</h3>
-                      <p className="text-sm text-gray-900 bg-green-50 p-3 rounded-lg">{selectedConsultation.treatment}</p>
+                      <h3 className="text-sm font-medium text-gray-500">
+                        Treatment
+                      </h3>
+                      <p className="text-sm text-gray-900 bg-green-50 p-3 rounded-lg">
+                        {selectedConsultation.treatment}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -428,23 +508,33 @@ const Consultations = () => {
                 {/* Vital Signs */}
                 {selectedConsultation.vitalSigns && (
                   <div>
-                    <h3 className="text-sm font-medium text-gray-500 mb-3">Vital Signs</h3>
+                    <h3 className="text-sm font-medium text-gray-500 mb-3">
+                      Vital Signs
+                    </h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="bg-gray-50 p-3 rounded-lg">
                         <p className="text-xs text-gray-500">Blood Pressure</p>
-                        <p className="text-sm font-medium text-gray-900">{selectedConsultation.vitalSigns.bloodPressure}</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {selectedConsultation.vitalSigns.bloodPressure}
+                        </p>
                       </div>
                       <div className="bg-gray-50 p-3 rounded-lg">
                         <p className="text-xs text-gray-500">Heart Rate</p>
-                        <p className="text-sm font-medium text-gray-900">{selectedConsultation.vitalSigns.heartRate} bpm</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {selectedConsultation.vitalSigns.heartRate} bpm
+                        </p>
                       </div>
                       <div className="bg-gray-50 p-3 rounded-lg">
                         <p className="text-xs text-gray-500">Temperature</p>
-                        <p className="text-sm font-medium text-gray-900">{selectedConsultation.vitalSigns.temperature}°F</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {selectedConsultation.vitalSigns.temperature}°F
+                        </p>
                       </div>
                       <div className="bg-gray-50 p-3 rounded-lg">
                         <p className="text-xs text-gray-500">Weight</p>
-                        <p className="text-sm font-medium text-gray-900">{selectedConsultation.vitalSigns.weight}</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {selectedConsultation.vitalSigns.weight}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -454,7 +544,9 @@ const Consultations = () => {
                 {selectedConsultation.notes && (
                   <div>
                     <h3 className="text-sm font-medium text-gray-500">Notes</h3>
-                    <p className="text-sm text-gray-900 bg-yellow-50 p-3 rounded-lg">{selectedConsultation.notes}</p>
+                    <p className="text-sm text-gray-900 bg-yellow-50 p-3 rounded-lg">
+                      {selectedConsultation.notes}
+                    </p>
                   </div>
                 )}
               </div>

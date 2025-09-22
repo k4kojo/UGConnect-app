@@ -7,9 +7,9 @@ const DoctorChat = () => {
   return (
     <div className="space-y-4">
       {/* Debug component - remove in production */}
-      <ChatDebugger />
+      {/* <ChatDebugger />
       
-      <ChatTest />
+      <ChatTest /> */}
       <RealtimeChat />
     </div>
   );

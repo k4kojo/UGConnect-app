@@ -110,9 +110,6 @@ const Prescriptions = () => {
             <div className="text-sm font-medium text-gray-900">
               {prescription.patient?.fullName || prescription.patientName}
             </div>
-            <div className="text-sm text-gray-500">
-              ID: {prescription.patient?.id || prescription.patientId}
-            </div>
           </div>
         </div>
       )

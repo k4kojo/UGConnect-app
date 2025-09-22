@@ -13,7 +13,9 @@ import {
     MapPin,
     X,
     Mic,
-    MicOff
+    MicOff,
+    Check,
+    XCircle
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -22,11 +24,12 @@ import {
     AppointmentCard,
     Button,
     Calendar as CalendarComponent,
-    LoadingSpinner,
+    TopLoadingBar,
     Modal,
     Noticeboard,
     QuickActionCard,
-    StatCard
+    StatCard,
+    ConfirmationModal
 } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useData } from '../../contexts/DataContext.jsx';
@@ -378,9 +381,12 @@ const DoctorDashboard = () => {
   const [showViewDetailsModal, setShowViewDetailsModal] = useState(false);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [showStartSessionModal, setShowStartSessionModal] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [appointmentDetails, setAppointmentDetails] = useState(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
   const { 
@@ -724,8 +730,79 @@ const DoctorDashboard = () => {
     }
   };
 
+  // Handle appointment confirmation
+  const handleConfirmAppointment = () => {
+    if (!selectedAppointment) return;
+    setShowConfirmModal(true);
+  };
+
+  const confirmAppointment = async () => {
+    if (!selectedAppointment) return;
+
+    setIsUpdatingStatus(true);
+    try {
+      await appointmentAPI.update(selectedAppointment.id, { 
+        status: 'confirmed' 
+      });
+      
+      toast.success(`Appointment with ${selectedAppointment.patientName} has been confirmed`);
+      setShowConfirmModal(false);
+      setShowViewDetailsModal(false);
+      setSelectedAppointment(null);
+      setAppointmentDetails(null);
+      
+      // Refresh dashboard data
+      if (data.doctorDashboard) {
+        fetchDoctorDashboard();
+      }
+    } catch (error) {
+      console.error('Error confirming appointment:', error);
+      toast.error('Failed to confirm appointment');
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  // Handle appointment rejection
+  const handleRejectAppointment = () => {
+    if (!selectedAppointment) return;
+    setShowRejectModal(true);
+  };
+
+  const rejectAppointment = async () => {
+    if (!selectedAppointment) return;
+
+    setIsUpdatingStatus(true);
+    try {
+      await appointmentAPI.update(selectedAppointment.id, { 
+        status: 'cancelled' 
+      });
+      
+      toast.success(`Appointment with ${selectedAppointment.patientName} has been rejected`);
+      setShowRejectModal(false);
+      setShowViewDetailsModal(false);
+      setSelectedAppointment(null);
+      setAppointmentDetails(null);
+      
+      // Refresh dashboard data
+      if (data.doctorDashboard) {
+        fetchDoctorDashboard();
+      }
+    } catch (error) {
+      console.error('Error rejecting appointment:', error);
+      toast.error('Failed to reject appointment');
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
   if (loading) {
-    return <LoadingSpinner size="2xl" text="Loading dashboard data..." />;
+    return (
+      <>
+        <TopLoadingBar loading />
+        <div className="min-h-screen" />
+      </>
+    );
   }
 
   return (
@@ -896,9 +973,10 @@ const DoctorDashboard = () => {
       >
         <div className="space-y-6">
           {isLoadingDetails ? (
-            <div className="flex justify-center py-8">
-              <LoadingSpinner size="lg" text="Loading appointment details..." />
-            </div>
+            <>
+              <TopLoadingBar loading />
+              <div className="py-8 text-center text-gray-500">Loading appointment details...</div>
+            </>
           ) : appointmentDetails ? (
             <div>
               {/* Patient Information */}
@@ -991,7 +1069,46 @@ const DoctorDashboard = () => {
             </div>
           )}
           
-          <div className="flex justify-end space-x-2">
+          <div className="flex justify-between items-center">
+            {/* Status-based action buttons */}
+            <div className="flex space-x-2">
+              {selectedAppointment?.status === 'pending' && (
+                <>
+                  <Button 
+                    variant="primary"
+                    onClick={handleConfirmAppointment}
+                    disabled={isUpdatingStatus}
+                    className="bg-green-600 hover:bg-green-700 focus:ring-green-500"
+                  >
+                    <Check className="h-4 w-4 mr-2" />
+                    {isUpdatingStatus ? 'Confirming...' : 'Confirm'}
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={handleRejectAppointment}
+                    disabled={isUpdatingStatus}
+                    className="border-red-300 text-red-700 hover:bg-red-50 focus:ring-red-500"
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    {isUpdatingStatus ? 'Rejecting...' : 'Reject'}
+                  </Button>
+                </>
+              )}
+              {selectedAppointment?.status === 'confirmed' && (
+                <div className="flex items-center text-green-600">
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  <span className="text-sm font-medium">Appointment Confirmed</span>
+                </div>
+              )}
+              {selectedAppointment?.status === 'cancelled' && (
+                <div className="flex items-center text-red-600">
+                  <XCircle className="h-4 w-4 mr-2" />
+                  <span className="text-sm font-medium">Appointment Cancelled</span>
+                </div>
+              )}
+            </div>
+            
+            {/* Close button */}
             <Button 
               variant="outline" 
               onClick={() => {
@@ -999,6 +1116,7 @@ const DoctorDashboard = () => {
                 setSelectedAppointment(null);
                 setAppointmentDetails(null);
               }}
+              disabled={isUpdatingStatus}
             >
               Close
             </Button>
@@ -1067,6 +1185,32 @@ const DoctorDashboard = () => {
           />
         </div>
       </Modal>
+
+      {/* Confirmation Modal for Confirming Appointment */}
+      <ConfirmationModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={confirmAppointment}
+        title="Confirm Appointment"
+        message={`Are you sure you want to confirm the appointment with ${selectedAppointment?.patientName}?\n\nThis will notify the patient that their appointment has been confirmed.`}
+        confirmText="Confirm Appointment"
+        cancelText="Cancel"
+        type="info"
+        isLoading={isUpdatingStatus}
+      />
+
+      {/* Confirmation Modal for Rejecting Appointment */}
+      <ConfirmationModal
+        isOpen={showRejectModal}
+        onClose={() => setShowRejectModal(false)}
+        onConfirm={rejectAppointment}
+        title="Reject Appointment"
+        message={`Are you sure you want to reject the appointment with ${selectedAppointment?.patientName}?\n\nThis will cancel the appointment and notify the patient.`}
+        confirmText="Reject Appointment"
+        cancelText="Cancel"
+        type="danger"
+        isLoading={isUpdatingStatus}
+      />
     </div>
   );
 };

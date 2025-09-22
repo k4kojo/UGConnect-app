@@ -1,7 +1,7 @@
 import {
   Activity,
   BarChart3,
-  DollarSign,
+  Wallet,
   Download,
   Eye,
   FileText,
@@ -13,7 +13,8 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Button, LoadingSpinner, ReportFormModal } from '../../components/ui';
+import { Button, TopLoadingBar, ReportFormModal } from '../../components/ui';
+
 import { useData } from '../../contexts/DataContext.jsx';
 
 const Reports = () => {
@@ -54,7 +55,7 @@ const Reports = () => {
   const reportTypes = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'patients', label: 'Patients', icon: Users },
-    { id: 'revenue', label: 'Revenue', icon: DollarSign },
+    { id: 'revenue', label: 'Revenue', icon: Wallet },
     { id: 'staff', label: 'Staff', icon: Activity },
     { id: 'inventory', label: 'Inventory', icon: FileText }
   ];
@@ -219,9 +220,10 @@ const Reports = () => {
 
   if (loading && reports.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <LoadingSpinner />
-      </div>
+      <>
+        <TopLoadingBar loading />
+        <div className="min-h-screen" />
+      </>
     );
   }
 

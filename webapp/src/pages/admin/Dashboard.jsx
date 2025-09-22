@@ -2,9 +2,8 @@ import {
   ArrowLeftRight,
   Calendar,
   Clock,
-  DollarSign,
+  Wallet,
   Download,
-  Globe,
   Info,
   Settings,
   Users
@@ -14,10 +13,10 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar as CalendarComponent,
-  LoadingSpinner,
   Noticeboard,
   QuickActionCard,
-  StatCard
+  StatCard,
+  TopLoadingBar
 } from '../../components/ui';
 import { useData } from '../../contexts/DataContext.jsx';
 
@@ -89,7 +88,8 @@ const AdminDashboard = () => {
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-GH', {
       style: 'currency',
-      currency: 'GHS'
+      currency: 'GHS',
+      currencyDisplay: 'symbol'
     }).format(amount);
   };
 
@@ -112,7 +112,7 @@ const AdminDashboard = () => {
     { 
       title: 'Total Revenue', 
       value: formatCurrency(dashboardData.paymentStats.totalRevenue), 
-      icon: DollarSign, 
+      icon: Wallet, 
       color: 'yellow',
       onClick: () => navigate('/admin/payments')
     },
@@ -160,8 +160,8 @@ const AdminDashboard = () => {
     },
     { 
       name: 'payments', 
-      icon: DollarSign, 
-      color: 'bg-yellow-100 hover:bg-yellow-200',
+      icon: Wallet, 
+      color: 'bg-green-100 hover:bg-green-200',
       onClick: () => navigate('/admin/payments'),
       description: 'Manage payments'
     },
@@ -186,13 +186,6 @@ const AdminDashboard = () => {
       onClick: () => navigate('/admin/backup'),
       description: 'System backup'
     },
-    { 
-      name: 'calendar-test', 
-      icon: Calendar, 
-      color: 'bg-green-100 hover:bg-green-200',
-      onClick: () => navigate('/admin/calendar-test'),
-      description: 'Test calendar views'
-    }
   ];
 
   // Generate notices from recent notifications
@@ -228,107 +221,106 @@ const AdminDashboard = () => {
     participants: appointment.patientName || 'Unknown'
   }));
 
-  if (loading) {
-    return <LoadingSpinner size="2xl" text="Loading dashboard data..." />;
-  }
-
   return (
-    <div className="space-y-6">
-      {/* Admin Dashboard Overview */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center mb-4">
-          <Info className="h-5 w-5 text-blue-600 mr-2" />
-          <h2 className="text-xl font-semibold text-gray-900">Overview</h2>
+    <>
+      <TopLoadingBar loading={loading} colorClass="bg-blue-600" trackClass="bg-blue-200/50" />
+      <div className="space-y-6">
+        {/* Admin Dashboard Overview */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center mb-4">
+            <Info className="h-5 w-5 text-blue-600 mr-2" />
+            <h2 className="text-xl font-semibold text-gray-900">Overview</h2>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {/* Doctor Count */}
+            <div className="text-center">
+              <div className="text-2xl font-bold text-gray-900">{dashboardData.roleStats.doctor}</div>
+              <div className="text-sm text-gray-600">Doctor</div>
+            </div>
+            
+            {/* Patient Count */}
+            <div className="text-center">
+              <div className="text-2xl font-bold text-gray-900">{dashboardData.roleStats.patient}</div>
+              <div className="text-sm text-gray-600">Patient</div>
+            </div>
+            
+            {/* Total Users */}
+            <div className="text-center">
+              <div className="text-2xl font-bold text-gray-900">{dashboardData.totalUsers}</div>
+              <div className="text-sm text-gray-600">Total Users</div>
+            </div>
+            
+            {/* Total Appointments */}
+            <div className="text-center">
+              <div className="text-2xl font-bold text-gray-900">{dashboardData.appointmentStats.total}</div>
+              <div className="text-sm text-gray-600">Total Appointments</div>
+            </div>
+            
+            {/* Total Revenue */}
+            <div className="text-center">
+              <div className="text-2xl font-bold text-gray-900">{formatCurrency(dashboardData.paymentStats.totalRevenue)}</div>
+              <div className="text-sm text-gray-600">Total Revenue</div>
+            </div>
+            
+            {/* Pending Appointments */}
+            <div className="text-center">
+              <div className="text-2xl font-bold text-gray-900">{dashboardData.appointmentStats.pending}</div>
+              <div className="text-sm text-gray-600">Pending Appointments</div>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {/* Doctor Count */}
-          <div className="text-center">
-            <div className="text-2xl font-bold text-gray-900">{dashboardData.roleStats.doctor}</div>
-            <div className="text-sm text-gray-600">Doctor</div>
-          </div>
-          
-          {/* Patient Count */}
-          <div className="text-center">
-            <div className="text-2xl font-bold text-gray-900">{dashboardData.roleStats.patient}</div>
-            <div className="text-sm text-gray-600">Patient</div>
-          </div>
-          
-          {/* Total Users */}
-          <div className="text-center">
-            <div className="text-2xl font-bold text-gray-900">{dashboardData.totalUsers}</div>
-            <div className="text-sm text-gray-600">Total Users</div>
-          </div>
-          
-          {/* Total Appointments */}
-          <div className="text-center">
-            <div className="text-2xl font-bold text-gray-900">{dashboardData.appointmentStats.total}</div>
-            <div className="text-sm text-gray-600">Total Appointments</div>
-          </div>
-          
-          {/* Total Revenue */}
-          <div className="text-center">
-            <div className="text-2xl font-bold text-gray-900">{formatCurrency(dashboardData.paymentStats.totalRevenue)}</div>
-            <div className="text-sm text-gray-600">Total Revenue</div>
-          </div>
-          
-          {/* Pending Appointments */}
-          <div className="text-center">
-            <div className="text-2xl font-bold text-gray-900">{dashboardData.appointmentStats.pending}</div>
-            <div className="text-sm text-gray-600">Pending Appointments</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statCards.map((stat, index) => (
-          <StatCard
-            key={index}
-            title={stat.title}
-            value={stat.value}
-            icon={stat.icon}
-            color={stat.color}
-            onClick={stat.onClick}
-          />
-        ))}
-      </div>
-
-      {/* Quick Actions */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {quickActions.map((action, index) => (
-            <QuickActionCard
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {statCards.map((stat, index) => (
+            <StatCard
               key={index}
-              name={action.name}
-              icon={action.icon}
-              color={action.color}
-              onClick={action.onClick}
-              description={action.description}
+              title={stat.title}
+              value={stat.value}
+              icon={stat.icon}
+              color={stat.color}
+              onClick={stat.onClick}
             />
           ))}
         </div>
-      </div>
 
-      {/* Bottom Section - Calendar and Noticeboard */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CalendarComponent
-          currentMonth={currentMonth}
-          onMonthChange={setCurrentMonth}
-          events={calendarEvents}
-          onDayClick={(day) => {
-            // Handle day click - could open appointment details
-            console.log('Day clicked:', day);
-          }}
-        />
-        <Noticeboard 
-          notices={notices}
-          title="Notifications"
-          onViewAll={() => navigate('/admin/notifications')}
-        />
+        {/* Quick Actions */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {quickActions.map((action, index) => (
+              <QuickActionCard
+                key={index}
+                name={action.name}
+                icon={action.icon}
+                color={action.color}
+                onClick={action.onClick}
+                description={action.description}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Bottom Section - Calendar and Noticeboard */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <CalendarComponent
+            currentMonth={currentMonth}
+            onMonthChange={setCurrentMonth}
+            events={calendarEvents}
+            onDayClick={(day) => {
+              // Handle day click - could open appointment details
+              console.log('Day clicked:', day);
+            }}
+          />
+          <Noticeboard 
+            notices={notices}
+            title="Notifications"
+            onViewAll={() => navigate('/admin/notifications')}
+          />
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

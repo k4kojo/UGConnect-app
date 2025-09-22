@@ -1,5 +1,16 @@
-import { appointmentAPI, availabilityAPI, chatAPI, doctorAPI, labResultsAPI, notificationsAPI, patientsAPI, paymentsAPI, prescriptionsAPI, reportsAPI, settingsAPI, userAPI, userSettingsAPI } from './api.js';
-import { labResultsService } from './labResultsService.js';
+import { 
+  prescriptionsAPI, 
+  appointmentAPI, 
+  userAPI, 
+  labResultsAPI,
+  paymentsAPI,
+  notificationsAPI,
+  chatAPI,
+  patientsAPI,
+  reportsAPI
+} from './api.js';
+import labResultsService from './labResultsService.js';
+import apiCache, { getCacheKey, CACHE_TTL } from '../utils/cache.js';
 
 class DashboardService {
   async getDashboardStats() {
@@ -152,18 +163,53 @@ class DashboardService {
     return this.getRecentActivity();
   }
 
-  async getPrescriptions() {
+  async getPrescriptions(userId = 'admin', forceRefresh = false) {
+    const cacheKey = getCacheKey.prescriptions(userId, 'admin');
+    
+    // Check cache first unless force refresh is requested
+    if (!forceRefresh) {
+      const cachedData = apiCache.get(cacheKey);
+      if (cachedData) {
+        console.log('Returning cached prescriptions data');
+        return {
+          success: true,
+          data: cachedData,
+          fromCache: true
+        };
+      }
+    }
+
     try {
-      const response = await prescriptionsAPI.getAll();
+      const response = await prescriptionsAPI.getAll({ limit: 100 }); // Get more records per page
+      
+      // Handle both old format (array) and new format (object with data and pagination)
+      const prescriptions = response.data?.data || response.data || [];
+      
+      // Cache the successful response
+      apiCache.set(cacheKey, prescriptions, CACHE_TTL.prescriptions);
+      
       return {
         success: true,
-        data: response.data || []
+        data: prescriptions,
+        pagination: response.data?.pagination || null,
+        fromCache: false
       };
     } catch (error) {
       console.error('Error fetching prescriptions:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to fetch prescriptions';
+      if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Request timed out. The server may be busy. Please try again.';
+      } else if (error.response?.status >= 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
       return {
         success: false,
-        error: error.response?.data?.error || error.message || 'Failed to fetch prescriptions'
+        error: errorMessage
       };
     }
   }

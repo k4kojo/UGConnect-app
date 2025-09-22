@@ -12,7 +12,7 @@ import {
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Button, LoadingSpinner } from '../../components/ui';
+import { Button, TopLoadingBar } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
 import { uploadProfilePicture } from '../../services/profilePictureService';
@@ -418,6 +418,7 @@ const Settings = () => {
 
   const renderProfileTab = () => (
     <div className="space-y-6">
+      <TopLoadingBar loading={initialLoading || loading || profilePictureLoading || dataLoading} />
       {/* Profile Picture Section */}
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Profile Picture</h3>
@@ -426,7 +427,7 @@ const Settings = () => {
             <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden relative">
               {profilePictureLoading ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-200 bg-opacity-75 rounded-full">
-                  <LoadingSpinner size="sm" />
+                  <span className="text-xs text-gray-700">Uploading...</span>
                 </div>
               ) : profileData.profilePicture ? (
                 <>
@@ -459,9 +460,7 @@ const Settings = () => {
               Recommended: Square image, 400x400 pixels or larger. Max size: 5MB
             </p>
             {profilePictureLoading && (
-              <p className="mt-1 text-xs text-blue-600">
-                Uploading profile picture...
-              </p>
+              <p className="mt-1 text-xs text-blue-600">Uploading profile picture...</p>
             )}
           </div>
         </div>
@@ -548,7 +547,7 @@ const Settings = () => {
           onClick={() => handleSave('profile')}
           disabled={loading}
         >
-          {loading ? <LoadingSpinner size="sm" /> : <Save className="h-4 w-4" />}
+          {loading ? <span className="mr-2 text-sm">Saving...</span> : <Save className="h-4 w-4" />}
           Save Changes
         </Button>
       </div>
@@ -671,7 +670,7 @@ const Settings = () => {
           onClick={() => handleSave('security')}
           disabled={loading}
         >
-          {loading ? <LoadingSpinner size="sm" /> : <Save className="h-4 w-4" />}
+          {loading ? <span className="mr-2 text-sm">Saving...</span> : <Save className="h-4 w-4" />}
           Save Changes
         </Button>
       </div>
@@ -713,7 +712,7 @@ const Settings = () => {
           onClick={() => handleSave('notifications')}
           disabled={loading}
         >
-          {loading ? <LoadingSpinner size="sm" /> : <Save className="h-4 w-4" />}
+          {loading ? <span className="mr-2 text-sm">Saving...</span> : <Save className="h-4 w-4" />}
           Save Changes
         </Button>
       </div>
@@ -837,7 +836,7 @@ const Settings = () => {
           onClick={() => handleSave('hospital')}
           disabled={loading}
         >
-          {loading ? <LoadingSpinner size="sm" /> : <Save className="h-4 w-4" />}
+          {loading ? <span className="mr-2 text-sm">Saving...</span> : <Save className="h-4 w-4" />}
           Save Changes
         </Button>
       </div>
@@ -885,7 +884,7 @@ const Settings = () => {
           onClick={() => handleSave('appearance')}
           disabled={loading}
         >
-          {loading ? <LoadingSpinner size="sm" /> : <Save className="h-4 w-4" />}
+          {loading ? <span className="mr-2 text-sm">Saving...</span> : <Save className="h-4 w-4" />}
           Save Changes
         </Button>
       </div>
@@ -902,7 +901,7 @@ const Settings = () => {
             <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden relative">
               {profilePictureLoading ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-200 bg-opacity-75 rounded-full">
-                  <LoadingSpinner size="sm" />
+                  <span className="text-xs text-gray-700">Uploading...</span>
                 </div>
               ) : doctorData.profilePicture ? (
                 <img 
@@ -1046,7 +1045,7 @@ const Settings = () => {
           onClick={() => handleSave('doctor')}
           disabled={loading}
         >
-          {loading ? <LoadingSpinner size="sm" /> : <Save className="h-4 w-4" />}
+          {loading ? <span className="mr-2 text-sm">Saving...</span> : <Save className="h-4 w-4" />}
           Save Changes
         </Button>
       </div>
@@ -1075,16 +1074,10 @@ const Settings = () => {
   // Show loading spinner while initial data is loading
   if (initialLoading && !data.userProfile) {
     return (
-      <div className="h-full flex bg-gray-50">
-        <div className="flex-1 p-6">
-          <div className="max-w-4xl mx-auto">
-            <div className="flex items-center justify-center h-64">
-              <LoadingSpinner size="lg" />
-              <span className="ml-3 text-gray-600">Loading settings...</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <>
+        <TopLoadingBar loading />
+        <div className="h-64" />
+      </>
     );
   }
 
@@ -1104,7 +1097,7 @@ const Settings = () => {
               </div>
               {showBackgroundLoading && (
                 <div className="flex items-center space-x-2 text-sm text-blue-600">
-                  <LoadingSpinner size="sm" />
+                  <TopLoadingBar loading />
                   <span>Loading additional data...</span>
                 </div>
               )}

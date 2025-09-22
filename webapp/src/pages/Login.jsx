@@ -87,8 +87,8 @@ const Login = () => {
             {/* Login Form */}
             <div className="px-6 pb-6">
               {/* Login Panel Header */}
-              <div className="bg-blue-900 text-white py-3 px-4 -mx-6 mb-6">
-                <h4 className="text-lg font-semibold">Login Panel</h4>
+              <div className="bg-blue-900 text-white py-3 px-4 -mx-6 mb-6 alc">
+                <h4 className="text-lg font-semibold flex justify-center">Login Panel</h4>
               </div>
               
               <form onSubmit={handleSubmit} className="space-y-4">

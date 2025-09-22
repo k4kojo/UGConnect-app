@@ -35,7 +35,8 @@ import {
   subscribeToMessages
 } from '../../services/firebaseChatService';
 import { patientsService } from '../../services/patientsService';
-import { Button, LoadingSpinner, ProfileAvatar } from '../ui';
+import { Button, TopLoadingBar, ProfileAvatar } from '../ui';
+import ConfirmationModal from '../ui/ConfirmationModal';
 
 const RealtimeChat = () => {
   const { user } = useAuth();
@@ -50,6 +51,8 @@ const RealtimeChat = () => {
   const [firebaseAuthenticated, setFirebaseAuthenticated] = useState(false);
   const [authError, setAuthError] = useState(null);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const unsubscribeRef = useRef(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -342,28 +345,22 @@ const RealtimeChat = () => {
     setShowMoreMenu(false);
   };
 
-  const handleDeleteChatRoom = async () => {
+  const handleDeleteChatRoom = () => {
     if (!selectedRoom) {
       toast.error('No chat selected');
       return;
     }
+    setShowMoreMenu(false);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteChatRoom = async () => {
+    if (!selectedRoom) return;
 
     const patientName = selectedRoom.patientName || 'this patient';
-    const confirmMessage = `⚠️ DANGER: Delete entire chat room with ${patientName}?\n\nThis will permanently delete:\n• All messages in this conversation\n• The chat room itself\n• All chat history\n\nThis action CANNOT be undone!\n\nType "DELETE" to confirm:`;
     
-    const userInput = window.prompt(confirmMessage);
-    
-    if (userInput !== 'DELETE') {
-      if (userInput !== null) { // User didn't cancel
-        toast.error('Chat room deletion cancelled - incorrect confirmation');
-      }
-      setShowMoreMenu(false);
-      return;
-    }
-
     try {
-      // Show loading toast
-      const loadingToast = toast.loading(`Deleting chat room with ${patientName}...`);
+      setIsDeleting(true);
       
       // Delete the chat room and all messages
       await deleteChatRoom(selectedRoom.id);
@@ -374,15 +371,15 @@ const RealtimeChat = () => {
       setMessages([]);
       
       // Success feedback
-      toast.dismiss(loadingToast);
       toast.success(`Chat room with ${patientName} deleted permanently`);
       
     } catch (error) {
       console.error('Error deleting chat room:', error);
       toast.error(`Failed to delete chat room: ${error.message}`);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
     }
-    
-    setShowMoreMenu(false);
   };
 
   const handleReportIssue = () => {
@@ -418,7 +415,12 @@ const RealtimeChat = () => {
   };
 
   if (loading) {
-    return <LoadingSpinner size="2xl" text="Loading chat..." />;
+    return (
+      <>
+        <TopLoadingBar loading />
+        <div className="h-full" />
+      </>
+    );
   }
 
   // Show appropriate message for admins
@@ -463,9 +465,7 @@ const RealtimeChat = () => {
         {/* Chat Rooms List */}
         <div className="flex-1 overflow-y-auto">
           {loading ? (
-            <div className="p-4 text-center">
-              <LoadingSpinner size="md" text="Loading chats..." />
-            </div>
+            <div className="p-4 text-center text-gray-500">Loading chats...</div>
           ) : authError ? (
             <div className="p-4 text-center text-red-500">
               <MessageSquare className="mx-auto h-8 w-8 mb-2" />
@@ -809,6 +809,23 @@ const RealtimeChat = () => {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDeleteChatRoom}
+        title="Delete Chat Room"
+        message={`Confirm Action?
+
+        This action CANNOT be undone!`}
+        confirmText="Delete Chat Room"
+        cancelText="Cancel"
+        type="danger"
+        requiresTyping={true}
+        requiredText="DELETE"
+        isLoading={isDeleting}
+      />
     </div>
   );
 };

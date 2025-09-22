@@ -6,15 +6,16 @@ import { useAuth } from './AuthContext';
 
 const DataContext = createContext();
 
-export function useData() {
+// Move useData hook to a separate function to avoid Fast Refresh issues
+const useData = () => {
   const context = useContext(DataContext);
   if (!context) {
     throw new Error('useData must be used within a DataProvider');
   }
   return context;
-}
+};
 
-export function DataProvider({ children }) {
+function DataProvider({ children }) {
   const { user, isAuthenticated } = useAuth();
   const [data, setData] = useState({
     // Doctor data
@@ -190,19 +191,40 @@ export function DataProvider({ children }) {
     }
 
     setLoading(true);
+    setError(null); // Clear previous errors
+    
     try {
+      console.log('Fetching prescriptions for user role:', user?.role);
+      
       // Use appropriate service based on user role
       const service = user?.role === 'doctor' ? doctorDashboardService : dashboardService;
       const response = await service.getPrescriptions();
+      
       if (response.success) {
+        console.log(`Successfully fetched ${response.data?.length || 0} prescriptions`);
         updateData(key, response.data);
         return response.data;
       } else {
-        setError(response.error);
+        console.error('Failed to fetch prescriptions:', response.error);
+        setError(response.error || 'Failed to fetch prescriptions');
         return null;
       }
     } catch (error) {
-      setError(error.message);
+      console.error('Error in fetchPrescriptions:', error);
+      
+      // Provide user-friendly error messages
+      let errorMessage = 'Failed to fetch prescriptions';
+      if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Request timed out. The server may be busy. Please try again.';
+      } else if (error.message?.includes('Network Error')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (error.response?.status >= 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
       return null;
     } finally {
       setLoading(false);
@@ -1554,3 +1576,6 @@ export function DataProvider({ children }) {
     </DataContext.Provider>
   );
 }
+
+// Export using named exports for Fast Refresh compatibility
+export { useData, DataProvider };

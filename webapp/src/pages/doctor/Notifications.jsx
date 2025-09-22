@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Button, LoadingSpinner } from '../../components/ui';
+import { Button, TopLoadingBar } from '../../components/ui';
 import { useData } from '../../contexts/DataContext';
 
 const DoctorNotifications = () => {
@@ -152,8 +152,13 @@ const DoctorNotifications = () => {
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  if (loading) {
-    return <LoadingSpinner size="2xl" text="Loading notifications..." />;
+  if (loading && notifications.length === 0) {
+    return (
+      <>
+        <TopLoadingBar loading />
+        <div className="min-h-screen" />
+      </>
+    );
   }
 
   if (error) {

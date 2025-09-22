@@ -12,7 +12,7 @@ import {
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { UserAvatar } from '../../components/shared';
-import { Button, LoadingSpinner } from '../../components/ui';
+import { Button, TopLoadingBar } from '../../components/ui';
 import { useData } from '../../contexts/DataContext';
 
 const DoctorLabResults = () => {
@@ -83,7 +83,12 @@ const DoctorLabResults = () => {
   };
 
   if (loading) {
-    return <LoadingSpinner size="2xl" text="Loading lab results..." />;
+    return (
+      <>
+        <TopLoadingBar loading />
+        <div className="min-h-screen" />
+      </>
+    );
   }
 
   if (error) {

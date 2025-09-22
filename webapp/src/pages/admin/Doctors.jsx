@@ -13,10 +13,9 @@ import {
   GraduationCap,
   Award,
   Clock,
-  Save,
-  Loader
+  Save
 } from 'lucide-react';
-import { Button, LoadingSpinner, ProfileAvatar } from '../../components/ui';
+import { Button, TopLoadingBar, ProfileAvatar } from '../../components/ui';
 import { userAPI } from '../../services/api.js';
 
 // Add Doctor Modal Component
@@ -146,6 +145,7 @@ const AddDoctorModal = ({ isOpen, onClose, onSave, loading }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <TopLoadingBar loading={loading} />
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold">Add New Doctor</h3>
           <button
@@ -316,10 +316,7 @@ const AddDoctorModal = ({ isOpen, onClose, onSave, loading }) => {
               disabled={loading}
             >
               {loading ? (
-                <>
-                  <Loader className="h-4 w-4 animate-spin" />
-                  <span>Creating...</span>
-                </>
+                <span>Creating...</span>
               ) : (
                 <>
                   <Save className="h-4 w-4" />
@@ -557,9 +554,10 @@ const Doctors = () => {
 
   if (loading && doctors.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <LoadingSpinner />
-      </div>
+      <>
+        <TopLoadingBar loading />
+        <div className="min-h-screen" />
+      </>
     );
   }
 

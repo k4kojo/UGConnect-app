@@ -10,18 +10,15 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   ActionButtons,
-  DataTable,
   Modal,
   PageHeader,
-  SearchAndFilter,
   StatusBadge,
   UserAvatar
 } from '../../components/shared';
-import { LoadingSpinner, PatientAvatar, PrescriptionFormModal } from '../../components/ui';
+import { Button, PatientAvatar, PrescriptionFormModal, TopLoadingBar, Table } from '../../components/ui';
 import { useData } from '../../contexts/DataContext';
 
 const DoctorPrescriptions = () => {
-  const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedPrescription, setSelectedPrescription] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -63,19 +60,10 @@ const DoctorPrescriptions = () => {
     }
   }, [error]);
 
-  // Filter prescriptions based on search and status
+  // Filter prescriptions based on status
   const filteredPrescriptions = prescriptions.filter(prescription => {
-    const patientName = prescription.patient?.name || prescription.patientName || '';
-    const medication = prescription.medications?.[0]?.name || prescription.medication || '';
-    
-    const matchesSearch = !searchTerm || 
-      patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      medication.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      prescription.patient?.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    
     const matchesStatus = filterStatus === 'all' || prescription.status === filterStatus;
-    
-    return matchesSearch && matchesStatus;
+    return matchesStatus;
   });
 
   const formatDate = (dateString) => {
@@ -249,33 +237,14 @@ const DoctorPrescriptions = () => {
     }
   ];
 
-  // Search and filter configuration
-  const searchAndFilterConfig = {
-    searchTerm,
-    onSearchChange: setSearchTerm,
-    searchPlaceholder: "Search by patient name, email, or medication...",
-    filters: [
-      {
-        key: 'status',
-        value: filterStatus,
-        options: [
-          { value: 'all', label: 'All Status' },
-          { value: 'Active', label: 'Active' },
-          { value: 'pending', label: 'Pending' },
-          { value: 'completed', label: 'Completed' },
-          { value: 'cancelled', label: 'Cancelled' }
-        ]
-      }
-    ],
-    onFilterChange: (key, value) => {
-      if (key === 'status') setFilterStatus(value);
-    },
-    primaryAction: {
-      label: 'New Prescription',
-      icon: Plus,
-      onClick: handleNewPrescription
-    }
-  };
+  // Status filter options for future use if needed
+  const statusOptions = [
+    { value: 'all', label: 'All Status' },
+    { value: 'Active', label: 'Active' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'cancelled', label: 'Cancelled' }
+  ];
 
   // Modal actions configuration
   const modalActions = [
@@ -305,7 +274,12 @@ const DoctorPrescriptions = () => {
   ];
 
   if (loading) {
-    return <LoadingSpinner size="2xl" text="Loading prescriptions..." />;
+    return (
+      <>
+        <TopLoadingBar loading />
+        <div className="min-h-screen" />
+      </>
+    );
   }
 
   return (
@@ -339,15 +313,17 @@ const DoctorPrescriptions = () => {
             </div>
           )}
 
-          <SearchAndFilter {...searchAndFilterConfig} />
-
-          <DataTable
+          <Table
             columns={columns}
             data={filteredPrescriptions}
             onRowClick={handleViewPrescription}
             selectedRow={selectedPrescription}
             loading={loading}
+            searchable={true}
+            searchPlaceholder="Search patients, medications, or diagnoses..."
             emptyMessage="No prescriptions found. Try adjusting your search or filters."
+            pageSize={10}
+            showRowNumbers={true}
           />
 
           <Modal

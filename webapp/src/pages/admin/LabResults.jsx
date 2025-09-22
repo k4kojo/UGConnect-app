@@ -12,21 +12,18 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   ActionButtons,
-  DataTable,
   Modal,
   PageHeader,
-  SearchAndFilter,
   StatusBadge,
   UserAvatar
 } from '../../components/shared';
-import { LoadingSpinner } from '../../components/ui';
+import { TopLoadingBar, Table } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
 
 const LabResults = () => {
   const { user } = useAuth();
   const { data, loading, error, fetchLabResults } = useData();
-  const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedResult, setSelectedResult] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -48,17 +45,10 @@ const LabResults = () => {
     }
   }, [error]);
 
-  // Filter lab results based on search and status
+  // Filter lab results based on status
   const filteredLabResults = labResults.filter(result => {
-    const matchesSearch = !searchTerm || 
-      result.patientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      result.testName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      result.testType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      result.orderedByName?.toLowerCase().includes(searchTerm.toLowerCase());
-    
     const matchesStatus = filterStatus === 'all' || result.status === filterStatus;
-    
-    return matchesSearch && matchesStatus;
+    return matchesStatus;
   });
 
   const formatDate = (dateString) => {
@@ -168,28 +158,14 @@ const LabResults = () => {
     }
   ];
 
-  // Search and filter configuration
-  const searchAndFilterConfig = {
-    searchTerm,
-    onSearchChange: setSearchTerm,
-    searchPlaceholder: "Search lab results...",
-    filters: [
-      {
-        key: 'status',
-        value: filterStatus,
-        options: [
-          { value: 'all', label: 'All Status' },
-          { value: 'completed', label: 'Completed' },
-          { value: 'pending', label: 'Pending' },
-          { value: 'processing', label: 'Processing' },
-          { value: 'cancelled', label: 'Cancelled' }
-        ]
-      }
-    ],
-    onFilterChange: (key, value) => {
-      if (key === 'status') setFilterStatus(value);
-    }
-  };
+  // Status filter options for future use if needed
+  const statusOptions = [
+    { value: 'all', label: 'All Status' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'processing', label: 'Processing' },
+    { value: 'cancelled', label: 'Cancelled' }
+  ];
 
   // Modal actions configuration
   const modalActions = [
@@ -215,7 +191,12 @@ const LabResults = () => {
   ];
 
   if (loading) {
-    return <LoadingSpinner size="2xl" text="Loading lab results..." />;
+    return (
+      <>
+        <TopLoadingBar loading />
+        <div className="min-h-screen" />
+      </>
+    );
   }
 
   return (
@@ -235,15 +216,17 @@ const LabResults = () => {
             </div>
           )}
 
-          <SearchAndFilter {...searchAndFilterConfig} />
-
-          <DataTable
+          <Table
             columns={columns}
             data={filteredLabResults}
             onRowClick={handleViewResult}
             selectedRow={selectedResult}
             loading={loading}
+            searchable={true}
+            searchPlaceholder="Search patients, tests, or doctors..."
             emptyMessage="No lab results found. Try adjusting your search or filters."
+            pageSize={10}
+            showRowNumbers={true}
           />
 
           <Modal

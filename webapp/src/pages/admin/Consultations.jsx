@@ -10,21 +10,18 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   ActionButtons,
-  DataTable,
   Modal,
   PageHeader,
-  SearchAndFilter,
   StatusBadge,
   UserAvatar
 } from '../../components/shared';
-import { LoadingSpinner } from '../../components/ui';
+import { TopLoadingBar, Table } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
 
 const Consultations = () => {
   const { user } = useAuth();
   const { data, loading, error, fetchAdminAppointments } = useData();
-  const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedConsultation, setSelectedConsultation] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -46,19 +43,10 @@ const Consultations = () => {
     }
   }, [error]);
 
-  // Filter consultations based on search and status
+  // Filter consultations based on status
   const filteredConsultations = consultations.filter(consultation => {
-    const patientName = `${consultation.patientFirstName || ''} ${consultation.patientLastName || ''}`.trim();
-    const doctorName = `${consultation.doctorFirstName || ''} ${consultation.doctorLastName || ''}`.trim();
-    
-    const matchesSearch = !searchTerm || 
-      patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doctorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      consultation.reasonForVisit?.toLowerCase().includes(searchTerm.toLowerCase());
-    
     const matchesStatus = filterStatus === 'all' || consultation.status === filterStatus;
-    
-    return matchesSearch && matchesStatus;
+    return matchesStatus;
   });
 
   const formatDate = (dateString) => {
@@ -298,33 +286,14 @@ const Consultations = () => {
     }
   ];
 
-  // Search and filter configuration
-  const searchAndFilterConfig = {
-    searchTerm,
-    onSearchChange: setSearchTerm,
-    searchPlaceholder: "Search consultations...",
-    filters: [
-      {
-        key: 'status',
-        value: filterStatus,
-        options: [
-          { value: 'all', label: 'All Status' },
-          { value: 'scheduled', label: 'Scheduled' },
-          { value: 'completed', label: 'Completed' },
-          { value: 'in-progress', label: 'In Progress' },
-          { value: 'cancelled', label: 'Cancelled' }
-        ]
-      }
-    ],
-    onFilterChange: (key, value) => {
-      if (key === 'status') setFilterStatus(value);
-    },
-    primaryAction: {
-      label: 'New Consultation',
-      icon: Plus,
-      onClick: handleNewConsultation
-    }
-  };
+  // Status filter options for future use if needed
+  const statusOptions = [
+    { value: 'all', label: 'All Status' },
+    { value: 'scheduled', label: 'Scheduled' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'in-progress', label: 'In Progress' },
+    { value: 'cancelled', label: 'Cancelled' }
+  ];
 
   // Modal actions configuration
   const modalActions = [
@@ -350,7 +319,12 @@ const Consultations = () => {
   ];
 
   if (loading) {
-    return <LoadingSpinner size="2xl" text="Loading consultations..." />;
+    return (
+      <>
+        <TopLoadingBar loading />
+        <div className="min-h-screen" />
+      </>
+    );
   }
 
   return (
@@ -368,15 +342,17 @@ const Consultations = () => {
             </div>
           )}
 
-          <SearchAndFilter {...searchAndFilterConfig} />
-
-          <DataTable
+          <Table
             columns={columns}
             data={filteredConsultations}
             onRowClick={handleViewConsultation}
             selectedRow={selectedConsultation}
             loading={loading}
+            searchable={true}
+            searchPlaceholder="Search patients, doctors, or reasons..."
             emptyMessage="No consultations found. Try adjusting your search or filters."
+            pageSize={10}
+            showRowNumbers={true}
           />
 
           <Modal

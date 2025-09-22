@@ -10,14 +10,13 @@ import {
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { LoadingSpinner, ProfileAvatar } from '../../components/ui';
+import { TopLoadingBar, ProfileAvatar, Table } from '../../components/ui';
 import { useData } from '../../contexts/DataContext.jsx';
 import { patientAPI, userAPI } from '../../services/api.js';
 
 const Patients = () => {
   const navigate = useNavigate();
   const { data, loading, error, fetchPatients, deletePatient } = useData();
-  const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -41,17 +40,10 @@ const Patients = () => {
     }
   }, [error]);
 
-  // Filter patients based on search and status
+  // Filter patients based on status
   const filteredPatients = patients.filter(patient => {
-    const matchesSearch = !searchTerm ||
-      patient.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.phoneNumber?.toLowerCase().includes(searchTerm.toLowerCase());
-
     const matchesStatus = statusFilter === 'all' || patient.isActive === (statusFilter === 'active');
-
-    return matchesSearch && matchesStatus;
+    return matchesStatus;
   });
 
   const handleViewPatient = (patient) => {
@@ -155,11 +147,130 @@ const Patients = () => {
     return isActive ? 'Active' : 'Inactive';
   };
 
+  // Table columns configuration
+  const columns = [
+    {
+      key: 'patient',
+      header: 'Patient',
+      render: (patient) => (
+        <div className="flex items-center">
+          <ProfileAvatar
+            name={`${patient.firstName} ${patient.lastName}`}
+            src={patient.profilePicture}
+            size="sm"
+          />
+          <div className="ml-3">
+            <div className="text-sm font-medium text-gray-900">
+              {patient.firstName} {patient.lastName}
+            </div>
+            <div className="text-sm text-gray-500">{patient.email}</div>
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'phone',
+      header: 'Phone',
+      render: (patient) => (
+        <div className="flex items-center text-sm text-gray-900">
+          <Phone className="w-4 h-4 mr-2 text-gray-400" />
+          {patient.phoneNumber || 'No phone'}
+        </div>
+      )
+    },
+    {
+      key: 'dateOfBirth',
+      header: 'Date of Birth',
+      render: (patient) => (
+        <div className="text-sm text-gray-900">
+          {formatDate(patient.dateOfBirth)}
+        </div>
+      )
+    },
+    {
+      key: 'userId',
+      header: 'Patient ID',
+      render: (patient) => (
+        <div className="text-sm text-gray-900 font-mono">
+          {patient.userId}
+        </div>
+      )
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (patient) => (
+        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+          getStatusColor(patient.isActive)
+        }`}>
+          {getStatusText(patient.isActive)}
+        </span>
+      )
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (patient) => (
+        <div className="flex space-x-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleViewPatientProfile(patient);
+            }}
+            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+            disabled={actionLoading}
+            title="View Profile"
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEditPatient(patient);
+            }}
+            className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"
+            disabled={actionLoading}
+            title="Edit Patient"
+          >
+            <Edit className="w-4 h-4" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleTogglePatientStatus(patient);
+            }}
+            className={`p-2 rounded-md transition-colors ${
+              patient.isActive 
+                ? 'text-gray-400 hover:text-red-600 hover:bg-red-50' 
+                : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
+            }`}
+            disabled={actionLoading}
+            title={patient.isActive ? 'Deactivate' : 'Activate'}
+          >
+            {patient.isActive ? '⏸️' : '▶️'}
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeletePatient(patient);
+            }}
+            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+            disabled={actionLoading}
+            title="Delete Patient"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      )
+    }
+  ];
+
   if (loading && patients.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <LoadingSpinner />
-      </div>
+      <>
+        <TopLoadingBar loading />
+        <div className="min-h-screen" />
+      </>
     );
   }
 
@@ -170,18 +281,8 @@ const Patients = () => {
         <p className="text-gray-600 mt-2">Manage all patients in the system</p>
       </div>
 
-      {/* Search and Filter */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <input
-            type="text"
-            placeholder="Search patients..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
+      {/* Status Filter */}
+      <div className="mb-6">
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -193,109 +294,21 @@ const Patients = () => {
         </select>
       </div>
 
-      {/* Patients Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredPatients.map((patient) => (
-          <div
-            key={patient.userId}
-            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
-            onClick={() => handleViewPatientProfile(patient)}
-          >
-            <div className="flex items-center space-x-4 mb-4">
-              <ProfileAvatar
-                name={`${patient.firstName} ${patient.lastName}`}
-                src={patient.profilePicture}
-                size="lg"
-              />
-              <div className="flex-1">
-                <h3 className="font-semibold text-lg text-gray-900">
-                  {patient.firstName} {patient.lastName}
-                </h3>
-                <p className="text-gray-600 text-sm">{patient.email}</p>
-                <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full mt-1 ${getStatusColor(patient.isActive)}`}>
-                  {getStatusText(patient.isActive)}
-                </span>
-              </div>
-            </div>
+      {/* Patients Table */}
+      <Table
+        columns={columns}
+        data={filteredPatients}
+        onRowClick={handleViewPatientProfile}
+        selectedRow={selectedPatient}
+        loading={loading}
+        searchable={true}
+        searchPlaceholder="Search patients by name, email, or phone..."
+        emptyMessage="No patients found. Try adjusting your search or filters."
+        pageSize={10}
+        showRowNumbers={true}
+        striped={true}
+      />
 
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center space-x-2 text-gray-600">
-                <Phone className="w-4 h-4" />
-                <span>{patient.phoneNumber || 'No phone'}</span>
-              </div>
-              <div className="flex items-center space-x-2 text-gray-600">
-                <Calendar className="w-4 h-4" />
-                <span>DOB: {formatDate(patient.dateOfBirth)}</span>
-              </div>
-              <div className="flex items-center space-x-2 text-gray-600">
-                <User className="w-4 h-4" />
-                <span>ID: {patient.userId}</span>
-              </div>
-            </div>
-
-            <div className="flex justify-end space-x-2 mt-4 pt-4 border-t border-gray-100">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleViewPatientProfile(patient);
-                }}
-                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                disabled={actionLoading}
-              >
-                <Eye className="w-4 h-4" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleEditPatient(patient);
-                }}
-                className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"
-                disabled={actionLoading}
-              >
-                <Edit className="w-4 h-4" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleTogglePatientStatus(patient);
-                }}
-                className={`p-2 rounded-md transition-colors ${
-                  patient.isActive 
-                    ? 'text-gray-400 hover:text-red-600 hover:bg-red-50' 
-                    : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
-                }`}
-                disabled={actionLoading}
-                title={patient.isActive ? 'Deactivate' : 'Activate'}
-              >
-                {patient.isActive ? '⏸️' : '▶️'}
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeletePatient(patient);
-                }}
-                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                disabled={actionLoading}
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {filteredPatients.length === 0 && !loading && (
-        <div className="text-center py-12">
-          <User className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No patients found</h3>
-          <p className="text-gray-600">
-            {searchTerm || statusFilter !== 'all' 
-              ? 'Try adjusting your search or filter criteria.'
-              : 'Get started by adding your first patient.'
-            }
-          </p>
-        </div>
-      )}
 
       {/* Patient Details Modal */}
       {showModal && selectedPatient && (

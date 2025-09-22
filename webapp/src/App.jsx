@@ -33,6 +33,7 @@ import DoctorPatients from './pages/doctor/Patients';
 import DoctorPrescriptions from './pages/doctor/Prescriptions';
 import DoctorVideoSession from './pages/doctor/VideoSession';
 import VideoCallTest from './components/VideoCallTest';
+import { TopLoadingBar } from './components/ui';
 
 function DefaultRedirect() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -41,9 +42,10 @@ function DefaultRedirect() {
   
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
+      <>
+        <TopLoadingBar loading />
+        <div className="min-h-screen" />
+      </>
     );
   }
   
@@ -74,9 +76,10 @@ function ProtectedRoute({ children, allowedRoles }) {
   // Show loading spinner while checking authentication
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
+      <>
+        <TopLoadingBar loading />
+        <div className="min-h-screen" />
+      </>
     );
   }
   

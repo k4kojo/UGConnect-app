@@ -1,4 +1,14 @@
-import { appointmentAPI, chatAPI, doctorAPI, labResultsAPI, medicalRecordsAPI, notificationsAPI, prescriptionsAPI } from './api.js';
+import { 
+  prescriptionsAPI, 
+  appointmentAPI, 
+  userAPI, 
+  labResultsAPI,
+  doctorAPI,
+  medicalRecordsAPI,
+  notificationsAPI,
+  chatAPI
+} from './api.js';
+import apiCache, { getCacheKey, CACHE_TTL } from '../utils/cache.js';
 
 class DoctorDashboardService {
   async getDoctorDashboardStats() {
@@ -212,18 +222,50 @@ class DoctorDashboardService {
     }
   }
 
-  async getPrescriptions() {
+  async getPrescriptions(userId, forceRefresh = false) {
+    const cacheKey = getCacheKey.prescriptions(userId, 'doctor');
+    
+    // Check cache first unless force refresh is requested
+    if (!forceRefresh) {
+      const cachedData = apiCache.get(cacheKey);
+      if (cachedData) {
+        console.log('Returning cached doctor prescriptions data');
+        return {
+          success: true,
+          data: cachedData,
+          fromCache: true
+        };
+      }
+    }
+
     try {
       const response = await prescriptionsAPI.getDoctorPrescriptions();
+      const prescriptions = response.data || [];
+      
+      // Cache the successful response
+      apiCache.set(cacheKey, prescriptions, CACHE_TTL.prescriptions);
+      
       return {
         success: true,
-        data: response.data || []
+        data: prescriptions,
+        fromCache: false
       };
     } catch (error) {
       console.error('Error fetching prescriptions:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to fetch prescriptions';
+      if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Request timed out. The server may be busy. Please try again.';
+      } else if (error.response?.status >= 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
       return {
         success: false,
-        error: error.response?.data?.error || error.message || 'Failed to fetch prescriptions'
+        error: errorMessage
       };
     }
   }

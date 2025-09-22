@@ -4,11 +4,18 @@ import config from '../config/env.js';
 // Create axios instance with base configuration
 const api = axios.create({
   baseURL: config.API_URL,
-  timeout: 30000, // Increased to 30 seconds to handle slow responses
+  timeout: 15000, // Reduced to 15 seconds for better UX
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+// Retry configuration
+const MAX_RETRIES = 2;
+const RETRY_DELAY = 1000; // 1 second
+
+// Helper function to create delay
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
@@ -24,13 +31,29 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle common errors
+// Response interceptor to handle common errors and retries
 api.interceptors.response.use(
   (response) => {
     return response;
   },
-  (error) => {
-    console.error('API Error:', error.response?.status, error.response?.data);
+  async (error) => {
+    const originalRequest = error.config;
+    
+    console.error('API Error:', error.response?.status, error.response?.data, error.code);
+    
+    // Handle timeout and network errors with retry logic
+    if ((error.code === 'ECONNABORTED' || error.code === 'NETWORK_ERROR' || error.response?.status >= 500) 
+        && !originalRequest._retry && originalRequest._retryCount < MAX_RETRIES) {
+      
+      originalRequest._retry = true;
+      originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
+      
+      console.log(`Retrying request (${originalRequest._retryCount}/${MAX_RETRIES}):`, originalRequest.url);
+      
+      await delay(RETRY_DELAY * originalRequest._retryCount);
+      
+      return api(originalRequest);
+    }
     
     if (error.response?.status === 401) {
       // Token expired or invalid
@@ -41,6 +64,8 @@ api.interceptors.response.use(
       console.error('Forbidden: Insufficient permissions');
     } else if (error.response?.status >= 500) {
       console.error('Server error:', error.response?.data);
+    } else if (error.code === 'ECONNABORTED') {
+      console.error('Request timeout - server may be overloaded');
     }
     
     return Promise.reject(error);

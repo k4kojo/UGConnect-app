@@ -13,7 +13,7 @@ import {
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { UserAvatar } from '../../components/shared';
-import { Button, LoadingSpinner } from '../../components/ui';
+import { Button, TopLoadingBar } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
 
@@ -125,7 +125,12 @@ const Appointments = () => {
   const isAdmin = user?.role === 'admin';
 
   if (loading) {
-    return <LoadingSpinner size="2xl" text="Loading appointments..." />;
+    return (
+      <>
+        <TopLoadingBar loading />
+        <div className="min-h-screen" />
+      </>
+    );
   }
 
   // Only show error screen if we have a critical error AND no appointments data

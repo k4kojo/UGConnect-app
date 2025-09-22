@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Button, LoadingSpinner, Modal } from '../../components/ui';
+import { Button, TopLoadingBar, Modal } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useData } from '../../contexts/DataContext.jsx';
 
@@ -170,9 +170,10 @@ const Availability = () => {
 
   if (loading && availability.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <LoadingSpinner />
-      </div>
+      <>
+        <TopLoadingBar loading />
+        <div className="min-h-screen" />
+      </>
     );
   }
 

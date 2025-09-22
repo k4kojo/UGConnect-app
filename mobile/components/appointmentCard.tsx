@@ -16,7 +16,7 @@ export interface AppointmentCardItem {
   time: string;
   type: AppointmentType;
   imageUrl?: string;
-  status?: 'confirmed' | 'pending';
+  status?: 'confirmed' | 'pending' | 'cancelled';
 }
 
 type Props = {
@@ -140,23 +140,37 @@ const AppointmentCard: React.FC<Props> = ({ items, onJoinCall, onMessage, showAc
                     styles.statusBadge,
                     appointment.status === 'confirmed' ? 
                       { backgroundColor: '#4CAF5015', borderColor: '#4CAF50' } : 
+                    appointment.status === 'cancelled' ?
+                      { backgroundColor: '#F4433615', borderColor: '#F44336' } :
                       { backgroundColor: '#FF980015', borderColor: '#FF9800' }
                   ]}
                 >
                   <Ionicons 
-                    name={appointment.status === 'confirmed' ? "checkmark-circle" : "time"} 
+                    name={
+                      appointment.status === 'confirmed' ? "checkmark-circle" : 
+                      appointment.status === 'cancelled' ? "close-circle" : 
+                      "time"
+                    } 
                     size={12} 
-                    color={appointment.status === 'confirmed' ? '#4CAF50' : '#FF9800'}
+                    color={
+                      appointment.status === 'confirmed' ? '#4CAF50' : 
+                      appointment.status === 'cancelled' ? '#F44336' : 
+                      '#FF9800'
+                    }
                   />
                   <Text
                     style={[
                       styles.statusBadgeText,
                       {
-                        color: appointment.status === 'confirmed' ? '#4CAF50' : '#FF9800'
+                        color: appointment.status === 'confirmed' ? '#4CAF50' : 
+                               appointment.status === 'cancelled' ? '#F44336' : 
+                               '#FF9800'
                       },
                     ]}
                   >
-                    {appointment.status === 'confirmed' ? 'Confirmed' : 'Pending'}
+                    {appointment.status === 'confirmed' ? 'Confirmed' : 
+                     appointment.status === 'cancelled' ? 'Cancelled' : 
+                     'Pending'}
                   </Text>
                 </View>
               ) : null}

@@ -392,11 +392,9 @@ const DoctorDashboard = () => {
     loading,
     error,
     fetchDoctorDashboard,
-    fetchDoctorRecentActivity,
     fetchNotifications,
     fetchDoctorPatients,
     fetchDoctorAppointments,
-    fetchDoctorMedicalRecords,
     fetchDoctorPrescriptions,
     fetchDoctorLabResults,
   } = useData();
@@ -419,12 +417,8 @@ const DoctorDashboard = () => {
     todayAppointments: [],
   };
 
-  const recentActivity = data.doctorRecentActivity || {
-    recentAppointments: [],
-    recentNotifications: [],
-    recentMedicalRecords: [],
-    recentLabResults: [],
-  };
+  // Use notifications from shared data instead of non-existent recent activity
+  const notifications = data.notifications || [];
 
   // Load data once per user session: core first, then secondary in background
   useEffect(() => {
@@ -435,7 +429,6 @@ const DoctorDashboard = () => {
         await fetchDoctorDashboard();
 
         Promise.allSettled([
-          fetchDoctorRecentActivity(),
           fetchNotifications(),
           fetchDoctorPatients?.(),
           fetchDoctorAppointments?.(),
@@ -448,7 +441,15 @@ const DoctorDashboard = () => {
       }
     };
     loadCoreThenSecondary();
-  }, [user?.userId]);
+  }, [
+    user?.userId,
+    fetchDoctorDashboard,
+    fetchNotifications,
+    fetchDoctorPatients,
+    fetchDoctorAppointments,
+    fetchDoctorPrescriptions,
+    fetchDoctorLabResults,
+  ]);
 
   // Show error toast if there's an error
   useEffect(() => {
@@ -564,7 +565,7 @@ const DoctorDashboard = () => {
   ];
 
   // Generate notices from notifications data
-  const notices = (data.notifications || []).slice(0, 5).map((notification) => {
+  const notices = notifications.slice(0, 5).map((notification) => {
     const createdAt = notification.createdAt
       ? new Date(notification.createdAt)
       : new Date();
@@ -637,17 +638,13 @@ const DoctorDashboard = () => {
     }
   );
 
-  // Generate calendar events from recent appointments
-  const calendarEvents = recentActivity.recentAppointments.map(
-    (appointment) => ({
-      date: new Date(appointment.appointmentDate),
-      event: `Appointment: ${
-        appointment.reasonForVisit || "No reason specified"
-      }`,
-      description: `Patient: ${appointment.patientName || "Unknown"}`,
-      participants: appointment.patientName || "Unknown",
-    })
-  );
+  // Generate calendar events from today's appointments (since we removed recent activity)
+  const calendarEvents = todayAppointments.map((appointment) => ({
+    date: new Date(),
+    event: `Appointment: ${appointment.reason}`,
+    description: `Patient: ${appointment.patientName}`,
+    participants: appointment.patientName,
+  }));
 
   // Appointment action handlers
   const handleViewDetails = async (appointment) => {

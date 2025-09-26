@@ -76,7 +76,6 @@ export const getCacheKey = {
   labResults: (userId, role) => `labResults_${role}_${userId}`,
   medicalRecords: (userId, role) => `medicalRecords_${role}_${userId}`,
   dashboardStats: (userId, role) => `dashboardStats_${role}_${userId}`,
-  recentActivity: (userId, role) => `recentActivity_${role}_${userId}`,
 };
 
 // Cache TTL configurations (in milliseconds)
@@ -87,7 +86,6 @@ export const CACHE_TTL = {
   labResults: 5 * 60 * 1000,       // 5 minutes
   medicalRecords: 5 * 60 * 1000,   // 5 minutes
   dashboardStats: 1 * 60 * 1000,   // 1 minute
-  recentActivity: 30 * 1000,       // 30 seconds
 };
 
 export default apiCache;

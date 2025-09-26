@@ -25,7 +25,7 @@ The `DataContext` wraps the entire application and manages cached data:
 
 The system caches the following data types:
 
-- **Doctor Data**: `doctorDashboard`, `doctorRecentActivity`, `doctorAppointments`, `doctorPatients`
+- **Doctor Data**: `doctorDashboard`, `doctorAppointments`, `doctorPatients`
 - **Admin Data**: `adminDashboard`, `adminRecentActivity`, `adminAppointments`, `adminPatients`, etc.
 - **Shared Data**: `prescriptions`, `labResults`, `consultations`, `notifications`, `chatRooms`, `chatMessages`
 

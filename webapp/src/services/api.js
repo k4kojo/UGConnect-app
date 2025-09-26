@@ -4,21 +4,36 @@ import config from "../config/env.js";
 // Create axios instance with base configuration
 const api = axios.create({
   baseURL: config.API_URL,
-  timeout: 30000, // Reduced to 30 seconds for better UX
+  timeout: 60000, // Increased to 60 seconds to reduce timeout errors
   headers: {
     "Content-Type": "application/json",
   },
 });
 
 // Retry configuration
-const MAX_RETRIES = 2;
-const RETRY_DELAY = 1000; // 1 second
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 2000; // 2 seconds
+const TIMEOUT_THRESHOLD = 45000; // 45 seconds before showing timeout warning
 
 // Helper function to create delay
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Request interceptor to add auth token
-api.interceptors.request.use(
+// Helper function to create API calls with custom timeout
+const createApiWithTimeout = (timeoutMs = 60000) => {
+  return axios.create({
+    baseURL: config.API_URL,
+    timeout: timeoutMs,
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+};
+
+// Long timeout API for heavy operations (2 minutes)
+const longTimeoutApi = createApiWithTimeout(120000);
+
+// Apply the same interceptors to long timeout API
+longTimeoutApi.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
     if (token) {
@@ -31,9 +46,65 @@ api.interceptors.request.use(
   }
 );
 
+longTimeoutApi.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    // Same error handling as main API
+    const originalRequest = error.config;
+    
+    if (
+      (error.code === "ECONNABORTED" ||
+        error.code === "NETWORK_ERROR" ||
+        error.response?.status >= 500) &&
+      !originalRequest._retry &&
+      (originalRequest._retryCount || 0) < MAX_RETRIES
+    ) {
+      originalRequest._retry = true;
+      originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
+      
+      const backoffDelay = RETRY_DELAY * Math.pow(2, originalRequest._retryCount - 1) + Math.random() * 1000;
+      await delay(backoffDelay);
+      
+      return longTimeoutApi(originalRequest);
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
+// Request interceptor to add auth token and timeout warning
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    
+    // Add request start time for timeout monitoring
+    config.metadata = { startTime: Date.now() };
+    
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 // Response interceptor to handle common errors and retries
 api.interceptors.response.use(
   (response) => {
+    // Log slow requests
+    if (response.config.metadata?.startTime) {
+      const duration = Date.now() - response.config.metadata.startTime;
+      if (duration > 10000) { // Log requests taking more than 10 seconds
+        console.warn(`Slow API request detected:`, {
+          url: response.config.url,
+          method: response.config.method,
+          duration: `${duration}ms`,
+          status: response.status
+        });
+      }
+    }
     return response;
   },
   async (error) => {
@@ -52,17 +123,20 @@ api.interceptors.response.use(
         error.code === "NETWORK_ERROR" ||
         error.response?.status >= 500) &&
       !originalRequest._retry &&
-      originalRequest._retryCount < MAX_RETRIES
+      (originalRequest._retryCount || 0) < MAX_RETRIES
     ) {
       originalRequest._retry = true;
       originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
 
       console.log(
         `Retrying request (${originalRequest._retryCount}/${MAX_RETRIES}):`,
-        originalRequest.url
+        originalRequest.url,
+        `- Error: ${error.code || error.message}`
       );
 
-      await delay(RETRY_DELAY * originalRequest._retryCount);
+      // Exponential backoff with jitter
+      const backoffDelay = RETRY_DELAY * Math.pow(2, originalRequest._retryCount - 1) + Math.random() * 1000;
+      await delay(backoffDelay);
 
       return api(originalRequest);
     }
@@ -77,7 +151,12 @@ api.interceptors.response.use(
     } else if (error.response?.status >= 500) {
       console.error("Server error:", error.response?.data);
     } else if (error.code === "ECONNABORTED") {
-      console.error("Request timeout - server may be overloaded");
+      console.error("Request timeout - server may be overloaded", {
+        url: originalRequest?.url,
+        method: originalRequest?.method,
+        timeout: originalRequest?.timeout || 60000,
+        retryCount: originalRequest?._retryCount || 0
+      });
     }
 
     return Promise.reject(error);
@@ -105,7 +184,7 @@ export const authAPI = {
 };
 
 export const userAPI = {
-  getAllUsers: () => api.get("/user"),
+  getAllUsers: () => longTimeoutApi.get("/user"), // Use long timeout for potentially large user lists
   getCurrentUser: (userId) => api.get(`/user/${userId}`),
   updateUser: (userId, userData) => api.put(`/user/${userId}`, userData),
   deleteUser: (userId) => api.delete(`/user/${userId}`),
@@ -115,7 +194,7 @@ export const userAPI = {
 };
 
 export const appointmentAPI = {
-  getAll: (params) => api.get("/appointments", { params }),
+  getAll: (params) => longTimeoutApi.get("/appointments", { params }), // Use long timeout for appointment lists
   getById: (id) => api.get(`/appointments/${id}`),
   create: (appointmentData) => api.post("/appointments", appointmentData),
   update: (id, appointmentData) =>
@@ -147,9 +226,9 @@ export const patientAPI = {
 export const medicalRecordsAPI = {
   // Updated to match backend route: /patients/:patientId/medical-records
   getAll: (patientId, params) =>
-    api.get(`/medical-records/patients/${patientId}/medical-records`, {
+    longTimeoutApi.get(`/medical-records/patients/${patientId}/medical-records`, {
       params,
-    }),
+    }), // Use long timeout for medical records
   getById: (patientId, recordId) =>
     api.get(`/medical-records/medical-records/${recordId}`),
   create: (patientId, recordData) =>
@@ -164,16 +243,16 @@ export const medicalRecordsAPI = {
 export const labResultsAPI = {
   // Updated to match backend route: GET / (with query params for filtering)
   getAll: (patientId, params) =>
-    api.get("/lab-results", { params: { ...params, patientId } }),
+    longTimeoutApi.get("/lab-results", { params: { ...params, patientId } }), // Use long timeout for lab results
   getById: (patientId, resultId) => api.get(`/lab-results/${resultId}`),
   create: (patientId, resultData) => api.post("/lab-results", resultData),
 };
 
 export const prescriptionsAPI = {
   // Updated to match backend routes
-  getAll: (params) => api.get("/prescriptions", { params }),
+  getAll: (params) => longTimeoutApi.get("/prescriptions", { params }), // Use long timeout for prescription lists
   getDoctorPrescriptions: (params) =>
-    api.get("/prescriptions/doctor", { params }),
+    longTimeoutApi.get("/prescriptions/doctor", { params }), // Use long timeout for doctor prescriptions
   getPatientPrescriptions: (params) =>
     api.get("/prescriptions/patient", { params }),
   getById: (prescriptionId) => api.get(`/prescriptions/${prescriptionId}`),

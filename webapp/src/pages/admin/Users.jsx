@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { Edit, Trash2, Eye, User, Phone, Shield, Calendar, CheckCircle, XCircle, Save, Loader, Plus } from 'lucide-react';
 import { userAPI } from '../../services/api.js';
+import { dashboardService } from '../../services/dashboardService.js';
 
 // Add User Modal Component
 const AddUserModal = ({ isOpen, onClose, onSave, loading }) => {
@@ -904,18 +905,18 @@ const Users = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
 
-  // Fetch users from API
+  // Fetch users from API using centralized service to avoid duplicate calls
   const fetchUsers = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      const response = await userAPI.getAllUsers();
+      const response = await dashboardService.getUsers();
       console.log('Users API response:', response);
-      if (response.data) {
+      if (response.success && response.data) {
         setUsers(response.data);
       } else {
-        setError('No users data received');
+        setError(response.error || 'No users data received');
       }
     } catch (err) {
       console.error('Error fetching users:', err);

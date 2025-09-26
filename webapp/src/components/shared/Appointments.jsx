@@ -63,7 +63,7 @@ const Appointments = () => {
     } else if (error && appointments.length > 0) {
       // If we have data but there was an error, show a warning instead
       console.warn("Non-critical error while fetching appointments:", error);
-      toast.warning("Some appointment data may be incomplete");
+      toast.warn("Some appointment data may be incomplete");
     }
   }, [error, appointments.length]);
 

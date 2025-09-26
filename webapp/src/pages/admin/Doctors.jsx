@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Button, TopLoadingBar, ProfileAvatar } from '../../components/ui';
 import { userAPI } from '../../services/api.js';
+import { dashboardService } from '../../services/dashboardService.js';
 
 // Add Doctor Modal Component
 const AddDoctorModal = ({ isOpen, onClose, onSave, loading }) => {
@@ -343,15 +344,17 @@ const Doctors = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Fetch doctors from backend API
+  // Fetch doctors from backend API using centralized service
   const fetchDoctors = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await userAPI.getAllUsers();
-      const allUsers = response.data || [];
-      const doctorsList = allUsers.filter(user => user.role === 'doctor');
-      setDoctors(doctorsList);
+      const response = await dashboardService.getDoctors();
+      if (response.success) {
+        setDoctors(response.data);
+      } else {
+        throw new Error(response.error || 'Failed to fetch doctors');
+      }
     } catch (err) {
       console.error('Error fetching doctors:', err);
       const errorMessage = err.response?.data?.error || err.message || 'Failed to fetch doctors';

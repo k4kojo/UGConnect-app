@@ -19,7 +19,6 @@ function DataProvider({ children }) {
   const [data, setData] = useState({
     // Doctor data
     doctorDashboard: null,
-    doctorRecentActivity: null,
     doctorAppointments: null,
     doctorPatients: null,
     
@@ -123,8 +122,8 @@ function DataProvider({ children }) {
   };
 
   const fetchDoctorMedicalRecords = async () => {
-    // Lightweight helper: return recent medical records captured via recent activity
-    return data.doctorRecentActivity?.recentMedicalRecords || [];
+    // Lightweight helper: return empty array since we removed recent activity
+    return [];
   };
 
   const updateData = (key, newData) => {
@@ -148,7 +147,16 @@ function DataProvider({ children }) {
 
     setLoading(true);
     try {
-      const response = await dashboardService.getDoctorDashboardStats(user.userId);
+      // Add timeout protection for dashboard loading
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Dashboard loading timeout')), 30000); // 30 second timeout
+      });
+      
+      const response = await Promise.race([
+        dashboardService.getDoctorDashboardStats(user.userId),
+        timeoutPromise
+      ]);
+      
       if (response.success) {
         updateData(key, response.data);
         return response.data;
@@ -157,38 +165,18 @@ function DataProvider({ children }) {
         return null;
       }
     } catch (error) {
-      setError(error.message);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchDoctorRecentActivity = async (forceRefresh = false) => {
-    if (!user?.userId || user?.role !== 'doctor') return;
-
-    const key = 'doctorRecentActivity';
-    if (!forceRefresh && data[key] && !isDataStale(key)) {
-      return data[key];
-    }
-
-    setLoading(true);
-    try {
-      const response = await dashboardService.getDoctorRecentActivity(user.userId);
-      if (response.success) {
-        updateData(key, response.data);
-        return response.data;
+      console.error('Doctor dashboard fetch error:', error);
+      if (error.message === 'Dashboard loading timeout') {
+        setError('Dashboard is taking longer than expected to load. Please check your connection and try again.');
       } else {
-        setError(response.error);
-        return null;
+        setError(error.message);
       }
-    } catch (error) {
-      setError(error.message);
       return null;
     } finally {
       setLoading(false);
     }
   };
+
 
   const fetchAdminDashboard = async (forceRefresh = false) => {
     if (!user?.userId || user?.role !== 'admin') return;
@@ -200,7 +188,16 @@ function DataProvider({ children }) {
 
     setLoading(true);
     try {
-      const response = await dashboardService.getAdminDashboardStats();
+      // Add timeout protection for admin dashboard loading
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Dashboard loading timeout')), 30000); // 30 second timeout
+      });
+      
+      const response = await Promise.race([
+        dashboardService.getAdminDashboardStats(),
+        timeoutPromise
+      ]);
+      
       if (response.success) {
         updateData(key, response.data);
         return response.data;
@@ -209,7 +206,12 @@ function DataProvider({ children }) {
         return null;
       }
     } catch (error) {
-      setError(error.message);
+      console.error('Admin dashboard fetch error:', error);
+      if (error.message === 'Dashboard loading timeout') {
+        setError('Dashboard is taking longer than expected to load. Please check your connection and try again.');
+      } else {
+        setError(error.message);
+      }
       return null;
     } finally {
       setLoading(false);
@@ -1507,10 +1509,6 @@ function DataProvider({ children }) {
     }
   };
 
-  // Data is only fetched manually - no automatic loading
-
-  // Notification polling disabled - no automatic refresh
-
   // Clear data when user logs out
   useEffect(() => {
     if (!isAuthenticated) {
@@ -1518,7 +1516,6 @@ function DataProvider({ children }) {
 
       setData({
         doctorDashboard: null,
-        doctorRecentActivity: null,
         doctorAppointments: null,
         doctorPatients: null,
         adminDashboard: null,
@@ -1561,7 +1558,6 @@ function DataProvider({ children }) {
     loading,
     error,
     fetchDoctorDashboard,
-    fetchDoctorRecentActivity,
     fetchDoctorAppointments,
     fetchDoctorPatients,
     fetchDoctorPrescriptions,

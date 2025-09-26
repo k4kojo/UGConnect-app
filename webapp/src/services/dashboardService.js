@@ -18,42 +18,91 @@ import {
 import labResultsService from "./labResultsService.js";
 
 class DashboardService {
+  // Cache for frequently accessed data to avoid duplicate API calls
+  _cache = {
+    users: null,
+    usersTimestamp: 0,
+    appointments: null,
+    appointmentsTimestamp: 0,
+  };
+  
+  // Cache TTL (5 minutes)
+  _cacheTTL = 5 * 60 * 1000;
+
+  // Helper method to get users with caching to avoid duplicate API calls
+  async _getCachedUsers() {
+    const now = Date.now();
+    if (this._cache.users && (now - this._cache.usersTimestamp) < this._cacheTTL) {
+      return this._cache.users;
+    }
+    
+    try {
+      const response = await userAPI.getAllUsers();
+      const users = response.data || [];
+      this._cache.users = users;
+      this._cache.usersTimestamp = now;
+      return users;
+    } catch (error) {
+      console.warn('Failed to fetch users:', error);
+      return this._cache.users || []; // Return cached data if available
+    }
+  }
+
+  // Helper method to get appointments with caching
+  async _getCachedAppointments() {
+    const now = Date.now();
+    if (this._cache.appointments && (now - this._cache.appointmentsTimestamp) < this._cacheTTL) {
+      return this._cache.appointments;
+    }
+    
+    try {
+      const response = await appointmentAPI.getAll();
+      const appointments = response.data || [];
+      this._cache.appointments = appointments;
+      this._cache.appointmentsTimestamp = now;
+      return appointments;
+    } catch (error) {
+      console.warn('Failed to fetch appointments:', error);
+      return this._cache.appointments || []; // Return cached data if available
+    }
+  }
   async getDashboardStats() {
     try {
-      // Fetch all users to get role-based counts
-      const usersResponse = await userAPI.getAllUsers();
-      const users = usersResponse.data || [];
+      // Use cached data and fetch remaining data in parallel to reduce server load
+      const [users, appointments, paymentsRes, notificationsRes] = await Promise.allSettled([
+        this._getCachedUsers(),
+        this._getCachedAppointments(),
+        paymentsAPI.getAll(),
+        notificationsAPI.getAll().catch(() => notificationsAPI.getUser()) // Fallback for non-admin users
+      ]);
+
+      const usersData = users.status === 'fulfilled' ? users.value : [];
+      const appointmentsData = appointments.status === 'fulfilled' ? appointments.value : [];
+      const payments = paymentsRes.status === 'fulfilled' ? paymentsRes.value.data || [] : [];
+      const notifications = notificationsRes.status === 'fulfilled' ? notificationsRes.value.data || [] : [];
 
       // Count users by role
       const roleStats = {
-        doctor: users.filter((user) => user.role === "doctor").length,
-        patient: users.filter((user) => user.role === "patient").length,
-        nurse: users.filter((user) => user.role === "nurse").length,
-        pharmacist: users.filter((user) => user.role === "pharmacist").length,
-        laboratorist: users.filter((user) => user.role === "laboratorist")
+        doctor: usersData.filter((user) => user.role === "doctor").length,
+        patient: usersData.filter((user) => user.role === "patient").length,
+        nurse: usersData.filter((user) => user.role === "nurse").length,
+        pharmacist: usersData.filter((user) => user.role === "pharmacist").length,
+        laboratorist: usersData.filter((user) => user.role === "laboratorist")
           .length,
-        accountant: users.filter((user) => user.role === "accountant").length,
+        accountant: usersData.filter((user) => user.role === "accountant").length,
       };
-
-      // Fetch appointments for statistics
-      const appointmentsResponse = await appointmentAPI.getAll();
-      const appointments = appointmentsResponse.data || [];
 
       // Count appointments by status
       const appointmentStats = {
-        total: appointments.length,
-        pending: appointments.filter((apt) => apt.status === "pending").length,
-        confirmed: appointments.filter((apt) => apt.status === "confirmed")
+        total: appointmentsData.length,
+        pending: appointmentsData.filter((apt) => apt.status === "pending").length,
+        confirmed: appointmentsData.filter((apt) => apt.status === "confirmed")
           .length,
-        completed: appointments.filter((apt) => apt.status === "completed")
+        completed: appointmentsData.filter((apt) => apt.status === "completed")
           .length,
-        cancelled: appointments.filter((apt) => apt.status === "cancelled")
+        cancelled: appointmentsData.filter((apt) => apt.status === "cancelled")
           .length,
       };
-
-      // Fetch payments for revenue statistics
-      const paymentsResponse = await paymentsAPI.getAll();
-      const payments = paymentsResponse.data || [];
 
       const paymentStats = {
         total: payments.length,
@@ -66,20 +115,6 @@ class DashboardService {
           .reduce((sum, payment) => sum + (payment.amount || 0), 0),
       };
 
-      // Fetch notifications for recent activity (admin route first, fallback to user route on 404)
-      let notifications = [];
-      try {
-        const notificationsResponse = await notificationsAPI.getAll();
-        notifications = notificationsResponse.data || [];
-      } catch (err) {
-        if (err?.response?.status === 404) {
-          const userNotificationsResponse = await notificationsAPI.getUser();
-          notifications = userNotificationsResponse.data || [];
-        } else {
-          throw err;
-        }
-      }
-
       return {
         success: true,
         data: {
@@ -87,7 +122,12 @@ class DashboardService {
           appointmentStats,
           paymentStats,
           recentNotifications: notifications.slice(0, 5), // Get latest 5 notifications
-          totalUsers: users.length,
+          totalUsers: usersData.length,
+          // Include raw data for reuse by other components
+          users: usersData,
+          appointments: appointmentsData,
+          payments,
+          notifications,
         },
       };
     } catch (error) {
@@ -104,31 +144,16 @@ class DashboardService {
 
   async getRecentActivity() {
     try {
-      // Fetch recent appointments
-      const appointmentsResponse = await appointmentAPI.getAll({ limit: 10 });
-      const appointments = appointmentsResponse.data || [];
+      // Fetch all recent data in parallel to reduce server load
+      const [appointmentsRes, paymentsRes, notificationsRes] = await Promise.allSettled([
+        appointmentAPI.getAll({ limit: 10 }),
+        paymentsAPI.getAll({ limit: 10 }),
+        notificationsAPI.getAll({ limit: 10 }).catch(() => notificationsAPI.getUser({ limit: 10 }))
+      ]);
 
-      // Fetch recent payments
-      const paymentsResponse = await paymentsAPI.getAll({ limit: 10 });
-      const payments = paymentsResponse.data || [];
-
-      // Fetch recent notifications (admin route first, fallback to user route on 404)
-      let notifications = [];
-      try {
-        const notificationsResponse = await notificationsAPI.getAll({
-          limit: 10,
-        });
-        notifications = notificationsResponse.data || [];
-      } catch (err) {
-        if (err?.response?.status === 404) {
-          const userNotificationsResponse = await notificationsAPI.getUser({
-            limit: 10,
-          });
-          notifications = userNotificationsResponse.data || [];
-        } else {
-          throw err;
-        }
-      }
+      const appointments = appointmentsRes.status === 'fulfilled' ? appointmentsRes.value.data || [] : [];
+      const payments = paymentsRes.status === 'fulfilled' ? paymentsRes.value.data || [] : [];
+      const notifications = notificationsRes.status === 'fulfilled' ? notificationsRes.value.data || [] : [];
 
       return {
         success: true,
@@ -152,8 +177,8 @@ class DashboardService {
 
   async getUsersByRole(role) {
     try {
-      const response = await userAPI.getAllUsers();
-      const users = response.data || [];
+      // Use cached users to avoid duplicate API calls
+      const users = await this._getCachedUsers();
 
       if (role) {
         return {
@@ -242,36 +267,52 @@ class DashboardService {
         new Set(appointments.map((apt) => apt.patientId).filter(Boolean))
       );
       const totalPatients = uniquePatients.length;
-      const limitedPatients = uniquePatients.slice(0, 10);
+      
+      // Reduce the number of patients for which we fetch detailed data to prevent timeouts
+      const limitedPatients = uniquePatients.slice(0, 5); // Reduced from 10 to 5
 
-      // Fetch medical records and lab results in parallel per patient with limits
+      // Fetch medical records and lab results with reduced concurrency to prevent server overload
       let medicalRecords = [];
       let labResults = [];
       try {
-        const medPromises = limitedPatients.map((patientId) =>
-          medicalRecordsAPI
-            .getAll(patientId, { limit: 5 })
-            .then((r) => r.data || [])
-            .catch(() => [])
-        );
-        const labPromises = limitedPatients.map((patientId) =>
-          labResultsAPI
-            .getAll(patientId, { limit: 5 })
-            .then((r) => r.data || [])
-            .catch(() => [])
-        );
+        // Process patients in smaller batches to reduce server load
+        const batchSize = 2; // Process 2 patients at a time
+        for (let i = 0; i < limitedPatients.length; i += batchSize) {
+          const batch = limitedPatients.slice(i, i + batchSize);
+          
+          const medPromises = batch.map((patientId) =>
+            medicalRecordsAPI
+              .getAll(patientId, { limit: 3 }) // Reduced from 5 to 3
+              .then((r) => r.data || [])
+              .catch(() => [])
+          );
+          const labPromises = batch.map((patientId) =>
+            labResultsAPI
+              .getAll(patientId, { limit: 3 }) // Reduced from 5 to 3
+              .then((r) => r.data || [])
+              .catch(() => [])
+          );
 
-        const [medSettled, labSettled] = await Promise.all([
-          Promise.allSettled(medPromises),
-          Promise.allSettled(labPromises),
-        ]);
+          const [medSettled, labSettled] = await Promise.all([
+            Promise.allSettled(medPromises),
+            Promise.allSettled(labPromises),
+          ]);
 
-        medicalRecords = medSettled.flatMap((res) =>
-          res.status === "fulfilled" ? res.value : []
-        );
-        labResults = labSettled.flatMap((res) =>
-          res.status === "fulfilled" ? res.value : []
-        );
+          const batchMedRecords = medSettled.flatMap((res) =>
+            res.status === "fulfilled" ? res.value : []
+          );
+          const batchLabResults = labSettled.flatMap((res) =>
+            res.status === "fulfilled" ? res.value : []
+          );
+          
+          medicalRecords.push(...batchMedRecords);
+          labResults.push(...batchLabResults);
+          
+          // Add small delay between batches to prevent overwhelming the server
+          if (i + batchSize < limitedPatients.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
       } catch (err) {
         console.warn("DashboardService: doctor parallel fetch warning:", err);
       }
@@ -315,79 +356,6 @@ class DashboardService {
     }
   }
 
-  async getDoctorRecentActivity(doctorId) {
-    try {
-      const t0 = Date.now();
-      const [appointmentsRes, notificationsRes] = await Promise.allSettled([
-        appointmentAPI.getAll({ doctorId, limit: 20, sort: 'appointmentDate', order: 'desc' }),
-        notificationsAPI.getUser({ limit: 10 }),
-      ]);
-
-      const appointments =
-        appointmentsRes.status === 'fulfilled' ? appointmentsRes.value.data || [] : [];
-      const notifications =
-        notificationsRes.status === 'fulfilled' ? notificationsRes.value.data || [] : [];
-
-      const uniquePatients = Array.from(
-        new Set(appointments.map((apt) => apt.patientId).filter(Boolean))
-      ).slice(0, 5);
-
-      let medicalRecords = [];
-      let labResults = [];
-      try {
-        const medPromises = uniquePatients.map((patientId) =>
-          medicalRecordsAPI
-            .getAll(patientId, { limit: 5 })
-            .then((r) => r.data || [])
-            .catch(() => [])
-        );
-        const labPromises = uniquePatients.map((patientId) =>
-          labResultsAPI
-            .getAll(patientId, { limit: 5 })
-            .then((r) => r.data || [])
-            .catch(() => [])
-        );
-
-        const [medSettled, labSettled] = await Promise.all([
-          Promise.allSettled(medPromises),
-          Promise.allSettled(labPromises),
-        ]);
-
-        medicalRecords = medSettled.flatMap((res) => (res.status === 'fulfilled' ? res.value : []));
-        labResults = labSettled.flatMap((res) => (res.status === 'fulfilled' ? res.value : []));
-
-        medicalRecords.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        labResults.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        medicalRecords = medicalRecords.slice(0, 5);
-        labResults = labResults.slice(0, 5);
-      } catch (err) {
-        console.warn('DashboardService: doctor recent activity parallel warning:', err);
-      }
-
-      const t1 = Date.now();
-      console.log(
-        `DashboardService: getDoctorRecentActivity in ${t1 - t0}ms (appointments: ${
-          appointments.length
-        }, MR: ${medicalRecords.length}, LR: ${labResults.length})`
-      );
-
-      return {
-        success: true,
-        data: {
-          recentAppointments: appointments,
-          recentNotifications: notifications,
-          recentMedicalRecords: medicalRecords,
-          recentLabResults: labResults,
-        },
-      };
-    } catch (error) {
-      console.error('Error fetching doctor recent activity:', error);
-      return {
-        success: false,
-        error: error.response?.data?.error || error.message || 'Failed to fetch recent activity',
-      };
-    }
-  }
 
   async getDoctorAppointments(doctorId, filters = {}) {
     try {
@@ -556,6 +524,14 @@ class DashboardService {
 
   async getLabResults() {
     try {
+      // Debug: Check current user info
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      console.log('DashboardService.getLabResults - Current user:', {
+        userId: currentUser.userId,
+        role: currentUser.role,
+        email: currentUser.email
+      });
+      
       // Fetch all lab results
       const labResults = await labResultsService.getAllLabResults();
 
@@ -783,8 +759,8 @@ class DashboardService {
 
   async getDoctors() {
     try {
-      const response = await userAPI.getAllUsers();
-      const users = response.data || [];
+      // Use cached users to avoid duplicate API calls
+      const users = await this._getCachedUsers();
       const doctors = users.filter((user) => user.role === "doctor");
       return {
         success: true,
@@ -999,10 +975,11 @@ class DashboardService {
 
   async getUsers() {
     try {
-      const response = await userAPI.getAllUsers();
+      // Use cached users to avoid duplicate API calls
+      const users = await this._getCachedUsers();
       return {
         success: true,
-        data: response.data || [],
+        data: users,
       };
     } catch (error) {
       console.error("Error fetching users:", error);

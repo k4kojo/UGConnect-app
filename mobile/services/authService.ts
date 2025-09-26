@@ -258,7 +258,12 @@ export const authService = {
       const response = await publicApi.get("/api/v0/user/verify-email", {
         params: { email, token },
       });
-      return { success: true, message: response.data.message };
+      return { 
+        success: true, 
+        message: response.data.message,
+        token: response.data.token,
+        user: response.data.user
+      };
     } catch (error: any) {
       return {
         success: false,
@@ -299,6 +304,10 @@ export const authService = {
     }
   },
 };
+
+// Standalone exported functions for email verification
+export const verifyEmail = authService.verifyEmail;
+export const resendVerification = authService.resendVerification;
 
 export function listDoctors() {
   throw new Error('Function not implemented.');

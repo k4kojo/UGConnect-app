@@ -45,8 +45,17 @@ const Avatar: React.FC<AvatarProps> = ({
 
   const dimension: ImageStyle = { width: size, height: size, borderRadius: size / 2 } as const;
 
-  if (imageUrl) {
-    return (
+  const [imageLoadError, setImageLoadError] = React.useState(false);
+
+  // Reset error state when imageUrl changes
+  React.useEffect(() => {
+    setImageLoadError(false);
+  }, [imageUrl]);
+
+  if (imageUrl && !imageLoadError) {
+    console.log('Avatar rendering with imageUrl:', imageUrl);
+    
+    const imageComponent = (
       <Image
         source={{ uri: imageUrl }}
         style={[
@@ -56,8 +65,26 @@ const Avatar: React.FC<AvatarProps> = ({
           imageStyle,
         ]}
         resizeMode="cover"
+        onError={(error) => {
+          console.error('Avatar image failed to load:', error.nativeEvent.error);
+          console.error('Failed URL:', imageUrl);
+          setImageLoadError(true); // This will cause a re-render with fallback
+        }}
+        onLoad={() => {
+          console.log('Avatar image loaded successfully:', imageUrl);
+        }}
       />
     );
+    
+    if (onPress) {
+      return (
+        <TouchableOpacity onPress={onPress}>
+          {imageComponent}
+        </TouchableOpacity>
+      );
+    }
+    
+    return imageComponent;
   }
 
   return (

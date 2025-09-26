@@ -1,15 +1,15 @@
-import { Lock, Mail } from 'lucide-react';
-import React, { useState } from 'react';
-import toast from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
-import hospitalBackground from '../assets/images/ug-image.png';
-import ugLogo from '../assets/images/ug_logo.png'; // ✅ Import UG logo
-import { useAuth } from '../contexts/AuthContext';
+import { Lock, Mail } from "lucide-react";
+import { useState } from "react";
+import toast from "react-hot-toast";
+import { Link, useNavigate } from "react-router-dom";
+import hospitalBackground from "../assets/images/ug-image.png";
+import ugLogo from "../assets/images/ug_logo.png";
+import { useAuth } from "../contexts/AuthContext";
 
 const Login = () => {
   const [formData, setFormData] = useState({
-    email: '',
-    password: ''
+    email: "",
+    password: "",
   });
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
@@ -18,7 +18,7 @@ const Login = () => {
   const handleChange = (e) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
   };
 
@@ -28,17 +28,17 @@ const Login = () => {
 
     try {
       const result = await signIn(formData.email, formData.password);
-      
+
       if (result.success) {
-        toast.success('Login successful!');
+        toast.success("Login successful!");
         const userRole = result.user.role;
         navigate(`/${userRole}`);
       } else {
-        toast.error(result.error || 'Login failed');
+        toast.error(result.error || "Login failed");
       }
     } catch (err) {
-      console.error('Login error:', err);
-      toast.error('An error occurred during login');
+      console.error("Login error:", err);
+      toast.error("An error occurred during login");
     } finally {
       setLoading(false);
     }
@@ -47,16 +47,16 @@ const Login = () => {
   return (
     <div className="min-h-screen relative overflow-hidden">
       {/* Background Image */}
-      <div 
+      <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{
           backgroundImage: `url(${hospitalBackground})`,
         }}
       />
-      
+
       {/* Overlay */}
       <div className="absolute inset-0 bg-black bg-opacity-60" />
-      
+
       {/* Header Banner */}
       <div className="relative z-10 bg-blue-900 text-white py-3 px-6 shadow-lg">
         <div className="flex justify-center items-center max-w-7xl mx-auto">
@@ -65,21 +65,20 @@ const Login = () => {
           </h1>
         </div>
       </div>
-      
+
       {/* Yellow Separator Line */}
       <div className="relative z-10 h-1 bg-yellow-400" />
-      
+
       {/* Main Content */}
       <div className="relative z-10 flex items-center justify-center min-h-screen px-4">
         <div className="w-full max-w-md">
           {/* Login Panel */}
           <div className="bg-white rounded-lg shadow-2xl overflow-hidden">
-            
             {/* UG Logo on top */}
             <div className="flex justify-center mt-6 mb-4">
-              <img 
-                src={ugLogo} 
-                alt="UG Logo" 
+              <img
+                src={ugLogo}
+                alt="UG Logo"
                 className="h-20 w-auto object-contain"
               />
             </div>
@@ -88,9 +87,11 @@ const Login = () => {
             <div className="px-6 pb-6">
               {/* Login Panel Header */}
               <div className="bg-blue-900 text-white py-3 px-4 -mx-6 mb-6 alc">
-                <h4 className="text-lg font-semibold flex justify-center">Login Panel</h4>
+                <h4 className="text-lg font-semibold flex justify-center">
+                  Login Panel
+                </h4>
               </div>
-              
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Email Field */}
                 <div>
@@ -136,28 +137,31 @@ const Login = () => {
                       Signing in...
                     </div>
                   ) : (
-                    'Sign in'
+                    "Sign in"
                   )}
                 </button>
               </form>
 
               {/* Additional Links */}
               <div className="mt-6 text-center space-y-2">
-                <a href="#" className="text-blue-600 hover:text-blue-800 text-sm">
+                <Link
+                  to="#"
+                  className="text-blue-600 hover:text-blue-800 text-sm"
+                >
                   Forgot your password?
-                </a>
+                </Link>
                 <div className="text-gray-600 text-sm">
-                  Don't have an account?{' '}
-                  <a href="#" className="text-blue-600 hover:text-blue-800">
+                  Don't have an account?{" "}
+                  <Link to="#" className="text-blue-600 hover:text-blue-800">
                     Contact administrator
-                  </a>
+                  </Link>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-      
+
       {/* Footer */}
       <div className="relative z-10 text-center py-4">
         <div className="h-px bg-green-500 mx-auto w-32 mb-4"></div>

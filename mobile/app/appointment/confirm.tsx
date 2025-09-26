@@ -514,7 +514,7 @@ const ConfirmScreen = () => {
         onPress={handleConfirm}
         disabled={isProcessing}
       >
-        <Text style={[styles.submitText, {color: themeColors.text}]}>
+        <Text style={styles.submitText}>
           {isProcessing ? t("common.processing") : t("confirm.confirmAndPay", { amount: total })}
         </Text>
       </TouchableOpacity>
@@ -649,6 +649,7 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   submitText: {
+    color: "white",
     fontSize: 15,
     fontWeight: "600",
   },

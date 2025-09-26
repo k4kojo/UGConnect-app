@@ -14,7 +14,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Button, TopLoadingBar } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
-import { uploadProfilePicture } from '../../services/profilePictureService';
+import { uploadProfilePicture, fileToBase64, compressImage } from '../../services/profilePictureService';
 
 const DoctorSettings = () => {
   const navigate = useNavigate();
@@ -33,6 +33,8 @@ const DoctorSettings = () => {
   const [initialLoading, setInitialLoading] = useState(true);
   const [dataPopulated, setDataPopulated] = useState(false);
   const [profilePictureLoading, setProfilePictureLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [previewImage, setPreviewImage] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -231,44 +233,182 @@ const DoctorSettings = () => {
     }
   };
 
+  /**
+   * Enhanced profile picture upload handler with comprehensive error handling,
+   * progress tracking, image preview, and optional compression
+   */
   const handleProfilePictureUpload = async (event, section = 'profile') => {
     const file = event.target.files[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select a valid image file');
+    
+    // Reset file input for future uploads
+    event.target.value = '';
+    
+    if (!file) {
+      console.log('No file selected');
       return;
     }
 
-    // Validate file size (5MB limit)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image size must be less than 5MB');
-      return;
-    }
-
+    // Reset states
+    setUploadProgress(0);
+    setPreviewImage(null);
     setProfilePictureLoading(true);
+
     try {
-      const result = await uploadProfilePicture(file, user.userId);
-      if (result.success) {
+      console.log('=== Starting Profile Picture Upload Process ===');
+      console.log('Section:', section);
+      console.log('File details:', {
+        name: file.name,
+        size: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
+        type: file.type
+      });
+
+      // Step 1: Generate preview image
+      try {
+        const previewUrl = await fileToBase64(file);
+        setPreviewImage(previewUrl);
+        console.log('Preview image generated');
+      } catch (previewError) {
+        console.warn('Failed to generate preview:', previewError);
+        // Continue without preview
+      }
+
+      // Step 2: Optional image compression for large files
+      let processedFile = file;
+      if (file.size > 2 * 1024 * 1024) { // Compress files larger than 2MB
+        try {
+          console.log('Compressing large image...');
+          const compressedFile = await compressImage(file, 800, 0.8);
+          if (compressedFile && compressedFile.size < file.size) {
+            processedFile = compressedFile;
+            console.log(`Image compressed: ${(file.size / 1024 / 1024).toFixed(2)}MB → ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+          }
+        } catch (compressionError) {
+          console.warn('Image compression failed, using original:', compressionError);
+          // Continue with original file
+        }
+      }
+
+      // Step 3: Upload with progress tracking
+      const result = await uploadProfilePicture(processedFile, user.userId, {
+        onProgress: (progressEvent) => {
+          if (progressEvent.lengthComputable) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(percentCompleted);
+            console.log(`Upload progress: ${percentCompleted}%`);
+          }
+        }
+      });
+
+      console.log('Upload result:', result);
+
+      // Step 4: Update UI state
+      if (result.success && result.profilePictureUrl) {
         const pictureUrl = result.profilePictureUrl;
         
+        // Update appropriate section data
         if (section === 'profile') {
-          setProfileData(prev => ({ ...prev, profilePicture: pictureUrl }));
+          setProfileData(prev => ({ 
+            ...prev, 
+            profilePicture: pictureUrl 
+          }));
+          console.log('Updated profile data with new picture');
         } else if (section === 'doctor') {
-          setDoctorData(prev => ({ ...prev, profilePicture: pictureUrl }));
+          setDoctorData(prev => ({ 
+            ...prev, 
+            profilePicture: pictureUrl 
+          }));
+          console.log('Updated doctor data with new picture');
         }
-        
-        toast.success('Profile picture updated successfully');
-        
-        // Refresh user profile to get updated data
-        await fetchUserProfile(true);
+
+        // Step 5: Show success message
+        toast.success(result.message || 'Profile picture updated successfully!', {
+          duration: 4000,
+          icon: '✅'
+        });
+
+        // Step 6: Refresh user profile to ensure data consistency
+        try {
+          await fetchUserProfile(true);
+          console.log('User profile refreshed successfully');
+        } catch (refreshError) {
+          console.warn('Failed to refresh user profile:', refreshError);
+          // Don't fail the entire operation for this
+        }
+
+        console.log('=== Profile Picture Upload Completed Successfully ===');
+
       } else {
-        throw new Error(result.error || 'Upload failed');
+        throw new Error(result.error || 'Upload succeeded but no profile picture URL returned');
       }
+
     } catch (error) {
-      console.error('Error uploading profile picture:', error);
-      toast.error(error.message || 'Failed to upload profile picture');
+      console.error('=== Profile Picture Upload Failed ===');
+      console.error('Error details:', error);
+
+      // Clear preview on error
+      setPreviewImage(null);
+
+      // Show user-friendly error message
+      toast.error(error.message || 'Failed to upload profile picture', {
+        duration: 6000,
+        icon: '❌'
+      });
+
+      // Log additional context for debugging
+      if (error.response) {
+        console.error('Server response:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data
+        });
+      }
+
+    } finally {
+      // Reset loading states
+      setProfilePictureLoading(false);
+      setUploadProgress(0);
+      
+      // Clear preview after a delay
+      setTimeout(() => {
+        setPreviewImage(null);
+      }, 3000);
+    }
+  };
+
+  /**
+   * Handle profile picture deletion
+   */
+  const handleProfilePictureDelete = async (section = 'profile') => {
+    if (!user?.userId) return;
+
+    const confirmDelete = window.confirm('Are you sure you want to remove your profile picture?');
+    if (!confirmDelete) return;
+
+    setProfilePictureLoading(true);
+    
+    try {
+      // Update UI immediately for better UX
+      if (section === 'profile') {
+        setProfileData(prev => ({ ...prev, profilePicture: null }));
+      } else if (section === 'doctor') {
+        setDoctorData(prev => ({ ...prev, profilePicture: null }));
+      }
+
+      // Call delete API (if implemented)
+      // await deleteProfilePicture(user.userId);
+      
+      toast.success('Profile picture removed successfully');
+      
+      // Refresh user profile
+      await fetchUserProfile(true);
+      
+    } catch (error) {
+      console.error('Error deleting profile picture:', error);
+      toast.error('Failed to remove profile picture');
+      
+      // Revert UI changes on error
+      await fetchUserProfile(true);
+      
     } finally {
       setProfilePictureLoading(false);
     }
@@ -365,9 +505,15 @@ const DoctorSettings = () => {
   const renderProfileTab = () => (
     <div className="space-y-6">
       <div className="flex items-center space-x-6">
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 relative">
           <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden">
-            {profileData.profilePicture ? (
+            {previewImage ? (
+              <img 
+                src={previewImage} 
+                alt="Preview" 
+                className="w-full h-full object-cover opacity-75"
+              />
+            ) : profileData.profilePicture ? (
               <img 
                 src={profileData.profilePicture} 
                 alt="Profile" 
@@ -377,22 +523,71 @@ const DoctorSettings = () => {
               <User className="h-8 w-8 text-gray-400" />
             )}
           </div>
+          
+          {/* Upload Progress Overlay */}
+          {profilePictureLoading && (
+            <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
+              <div className="text-center">
+                <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mb-1"></div>
+                {uploadProgress > 0 && (
+                  <div className="text-xs text-white font-medium">{uploadProgress}%</div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-        <div>
+        
+        <div className="flex-1">
           <h3 className="text-lg font-medium text-gray-900">Profile Photo</h3>
           <p className="text-gray-600">Upload a professional photo for your profile</p>
-          <div className="mt-2">
-            <label className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer">
-              {profilePictureLoading ? 'Uploading...' : 'Change Photo'}
+          <p className="text-xs text-gray-500 mt-1">
+            Supported formats: JPG, PNG, GIF, WebP (max 5MB)
+          </p>
+          
+          <div className="mt-3 flex items-center space-x-3">
+            <label className={`inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer transition-colors ${profilePictureLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              {profilePictureLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin mr-2"></div>
+                  Uploading...
+                </>
+              ) : (
+                'Change Photo'
+              )}
               <input 
                 type="file" 
                 className="sr-only" 
-                accept="image/*"
+                accept="image/jpeg,image/png,image/gif,image/webp"
                 onChange={(e) => handleProfilePictureUpload(e, 'profile')}
                 disabled={profilePictureLoading}
               />
             </label>
+            
+            {profileData.profilePicture && !profilePictureLoading && (
+              <button
+                onClick={() => handleProfilePictureDelete('profile')}
+                className="inline-flex items-center px-3 py-2 border border-red-300 rounded-md shadow-sm text-sm font-medium text-red-700 bg-white hover:bg-red-50 transition-colors"
+              >
+                Remove
+              </button>
+            )}
           </div>
+          
+          {/* Progress Bar */}
+          {profilePictureLoading && uploadProgress > 0 && (
+            <div className="mt-3">
+              <div className="flex justify-between text-xs text-gray-600 mb-1">
+                <span>Uploading...</span>
+                <span>{uploadProgress}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       

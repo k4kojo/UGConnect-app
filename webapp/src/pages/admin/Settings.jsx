@@ -15,7 +15,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Button, TopLoadingBar } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
-import { uploadProfilePicture } from '../../services/profilePictureService';
+import { uploadProfilePicture, fileToBase64, compressImage } from '../../services/profilePictureService';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -35,6 +35,8 @@ const Settings = () => {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [profilePictureLoading, setProfilePictureLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [previewImage, setPreviewImage] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -394,22 +396,68 @@ const Settings = () => {
           return;
         }
         
-        // Show loading state
+        // Reset states
+        setUploadProgress(0);
+        setPreviewImage(null);
         setProfilePictureLoading(true);
-        
-        // Upload to backend - this will store the image as base64 in the database
-        const imageUrl = await uploadProfilePicture(file, user.userId);
-        
-        // Update profile data with the new image URL
-        setProfileData(prev => ({ ...prev, profilePicture: imageUrl }));
-        
-        // Don't call updateUserProfile here - the upload already updated the database
-        // The uploadProfilePicture function handles storing the image data
-        
-        toast.success('Profile picture updated successfully');
+
+        try {
+          console.log('=== Starting Admin Profile Picture Upload ===');
+          
+          // Generate preview image
+          try {
+            const previewUrl = await fileToBase64(file);
+            setPreviewImage(previewUrl);
+          } catch (previewError) {
+            console.warn('Failed to generate preview:', previewError);
+          }
+
+          // Optional compression for large files
+          let processedFile = file;
+          if (file.size > 2 * 1024 * 1024) {
+            try {
+              const compressedFile = await compressImage(file, 800, 0.8);
+              if (compressedFile && compressedFile.size < file.size) {
+                processedFile = compressedFile;
+                console.log(`Image compressed: ${(file.size / 1024 / 1024).toFixed(2)}MB → ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+              }
+            } catch (compressionError) {
+              console.warn('Image compression failed, using original:', compressionError);
+            }
+          }
+
+          // Upload with progress tracking
+          const result = await uploadProfilePicture(processedFile, user.userId, {
+            onProgress: (progressEvent) => {
+              if (progressEvent.lengthComputable) {
+                const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                setUploadProgress(percentCompleted);
+              }
+            }
+          });
+          
+          if (result.success) {
+            const pictureUrl = result.profilePictureUrl;
+            
+            // Update profile data with the new image URL
+            setProfileData(prev => ({ ...prev, profilePicture: pictureUrl }));
+            
+            toast.success(result.message || 'Profile picture updated successfully!', {
+              duration: 4000,
+              icon: '✅'
+            });
+            
+            // Refresh user profile to get updated data
+            await fetchUserProfile(true);
+          } else {
+            throw new Error(result.error || 'Upload failed');
+          }
+        } catch (uploadError) {
+          throw uploadError; // Re-throw to be caught by outer catch
+        }
       } catch (error) {
         console.error('Error uploading profile picture:', error);
-        toast.error('Failed to upload profile picture');
+        toast.error(error.message || 'Failed to upload profile picture');
       } finally {
         setProfilePictureLoading(false);
       }

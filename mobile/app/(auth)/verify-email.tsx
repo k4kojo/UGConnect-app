@@ -40,10 +40,19 @@ export default function VerifyEmailScreen() {
     try {
       const result = await verifyEmail(email, code);
       if (result.success) {
-        // Persist signup token (issued on sign-up) so auth gate allows tabs
-        if (signupToken) {
+        // Store the new token returned from verification (with updated isVerified status)
+        if (result.token) {
+          await AsyncStorage.setItem("authToken", String(result.token));
+        } else if (signupToken) {
+          // Fallback to signup token if no new token returned
           await AsyncStorage.setItem("authToken", String(signupToken));
         }
+        
+        // Store updated user data if provided
+        if (result.user) {
+          await AsyncStorage.setItem("authUser", JSON.stringify(result.user));
+        }
+        
         router.replace("/tabs");
       } else {
         setError(result.error);

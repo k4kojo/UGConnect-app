@@ -158,10 +158,16 @@ export const userService = {
 
       // Create FormData for file upload
       const formData = new FormData();
+      
+      // Determine file type and name from URI
+      const fileExtension = imageUri.split('.').pop()?.toLowerCase() || 'jpg';
+      const mimeType = fileExtension === 'png' ? 'image/png' : 'image/jpeg';
+      const fileName = `profile_${Date.now()}.${fileExtension}`;
+      
       formData.append('profilePicture', {
         uri: imageUri,
-        type: 'image/jpeg',
-        name: 'profile.jpg',
+        type: mimeType,
+        name: fileName,
       } as any);
 
       const response = await api.post('/api/v0/user/profile-picture/upload', formData, {

@@ -1,50 +1,51 @@
 import {
-    Calendar,
-    CheckCircle,
-    Clock,
-    FileText,
-    TestTube,
-    User,
-    Users,
-    Video,
-    VideoOff,
-    Phone,
-    Mail,
-    MapPin,
-    X,
-    Mic,
-    MicOff,
-    Check,
-    XCircle
-} from 'lucide-react';
-import React, { useEffect, useState } from 'react';
-import toast from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
+  Calendar,
+  Check,
+  CheckCircle,
+  Clock,
+  FileText,
+  Mail,
+  MapPin,
+  Mic,
+  MicOff,
+  Phone,
+  TestTube,
+  User,
+  Users,
+  Video,
+  VideoOff,
+  XCircle,
+} from "lucide-react";
+import React, { useEffect, useState } from "react";
+import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 import {
-    AppointmentCard,
-    Button,
-    Calendar as CalendarComponent,
-    TopLoadingBar,
-    Modal,
-    Noticeboard,
-    QuickActionCard,
-    StatCard,
-    ConfirmationModal
-} from '../../components/ui';
-import { useAuth } from '../../contexts/AuthContext.jsx';
-import { useData } from '../../contexts/DataContext.jsx';
-import { appointmentAPI, notificationsAPI } from '../../services/api.js';
+  DashboardLayout,
+  PageHeader,
+  StatisticsGrid,
+  QuickActions,
+  CalendarSection,
+  NoticeboardSection,
+} from "../../components/shared";
+import {
+  AppointmentCard,
+  Button,
+  Modal,
+} from "../../components/ui";
+import { useAuth } from "../../contexts/AuthContext.jsx";
+import { useData } from "../../contexts/DataContext.jsx";
+import { appointmentAPI } from "../../services/api.js";
 
 // Reschedule Form Component
 const RescheduleForm = ({ onSubmit, onCancel }) => {
-  const [selectedDate, setSelectedDate] = useState('');
-  const [selectedTime, setSelectedTime] = useState('');
+  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedTime, setSelectedTime] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedDate || !selectedTime) {
-      toast.error('Please select both date and time');
+      toast.error("Please select both date and time");
       return;
     }
 
@@ -53,14 +54,14 @@ const RescheduleForm = ({ onSubmit, onCancel }) => {
       const newDateTime = new Date(`${selectedDate}T${selectedTime}`);
       await onSubmit(newDateTime);
     } catch (error) {
-      console.error('Error in reschedule form:', error);
+      console.error("Error in reschedule form:", error);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   // Get minimum date (today)
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toISOString().split("T")[0];
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -92,20 +93,16 @@ const RescheduleForm = ({ onSubmit, onCancel }) => {
       </div>
 
       <div className="flex justify-end space-x-2 pt-4">
-        <Button 
+        <Button
           type="button"
-          variant="outline" 
+          variant="outline"
           onClick={onCancel}
           disabled={isSubmitting}
         >
           Cancel
         </Button>
-        <Button 
-          type="submit"
-          variant="primary"
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? 'Rescheduling...' : 'Reschedule'}
+        <Button type="submit" variant="primary" disabled={isSubmitting}>
+          {isSubmitting ? "Rescheduling..." : "Reschedule"}
         </Button>
       </div>
     </form>
@@ -118,16 +115,16 @@ const VideoSessionControls = ({ onStartCall, onCancel }) => {
   const [micEnabled, setMicEnabled] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [stream, setStream] = useState(null);
-  const [permissionError, setPermissionError] = useState('');
+  const [permissionError, setPermissionError] = useState("");
   const videoRef = React.useRef(null);
 
   const requestMediaAccess = async (video = false, audio = false) => {
     try {
-      setPermissionError('');
-      
+      setPermissionError("");
+
       if (stream) {
         // Stop existing stream
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach((track) => track.stop());
         setStream(null);
       }
 
@@ -143,35 +140,35 @@ const VideoSessionControls = ({ onStartCall, onCancel }) => {
       const newStream = await navigator.mediaDevices.getUserMedia(constraints);
 
       setStream(newStream);
-      
+
       if (videoRef.current && video) {
         videoRef.current.srcObject = newStream;
       }
 
       return newStream;
     } catch (error) {
-      console.error('Error accessing media devices:', error);
-      let errorMessage = 'Error accessing ';
-      
+      console.error("Error accessing media devices:", error);
+      let errorMessage = "Error accessing ";
+
       // More specific error messages based on what was requested
       if (video && audio) {
-        errorMessage += 'camera/microphone. ';
+        errorMessage += "camera/microphone. ";
       } else if (video) {
-        errorMessage += 'camera. ';
+        errorMessage += "camera. ";
       } else if (audio) {
-        errorMessage += 'microphone. ';
+        errorMessage += "microphone. ";
       }
-      
-      if (error.name === 'NotAllowedError') {
-        errorMessage += 'Please allow permissions.';
-      } else if (error.name === 'NotFoundError') {
-        errorMessage += 'Device not found.';
-      } else if (error.name === 'NotReadableError') {
-        errorMessage += 'Device is already in use.';
+
+      if (error.name === "NotAllowedError") {
+        errorMessage += "Please allow permissions.";
+      } else if (error.name === "NotFoundError") {
+        errorMessage += "Device not found.";
+      } else if (error.name === "NotReadableError") {
+        errorMessage += "Device is already in use.";
       } else {
         errorMessage += error.message;
       }
-      
+
       setPermissionError(errorMessage);
       throw error; // Re-throw so calling functions can handle it
     }
@@ -179,77 +176,83 @@ const VideoSessionControls = ({ onStartCall, onCancel }) => {
 
   const handleCameraToggle = async () => {
     const newCameraState = !cameraEnabled;
-    console.debug('Camera toggle:', { current: cameraEnabled, new: newCameraState });
-    
+    console.debug("Camera toggle:", {
+      current: cameraEnabled,
+      new: newCameraState,
+    });
+
     if (newCameraState) {
-      toast.loading('Camera turning on...');
+      toast.loading("Camera turning on...");
     }
-    
+
     setCameraEnabled(newCameraState);
-    
+
     try {
       if (newCameraState || micEnabled) {
         await requestMediaAccess(newCameraState, micEnabled);
         if (newCameraState) {
           toast.dismiss();
-          toast.success('Camera is on');
+          toast.success("Camera is on");
         }
       } else {
         // Turn off all media if both camera and mic are disabled
         if (stream) {
-          stream.getTracks().forEach(track => track.stop());
+          stream.getTracks().forEach((track) => track.stop());
           setStream(null);
         }
         toast.dismiss();
       }
-    } catch (error) {
+    } catch {
       toast.dismiss();
-      toast.error('Failed to access camera');
+      toast.error("Failed to access camera");
       setCameraEnabled(!newCameraState); // Revert state on error
     }
   };
 
   const handleMicToggle = async () => {
     const newMicState = !micEnabled;
-    console.debug('Microphone toggle:', { current: micEnabled, new: newMicState });
-    
+    console.debug("Microphone toggle:", {
+      current: micEnabled,
+      new: newMicState,
+    });
+
     if (newMicState) {
-      toast.loading('Microphone turning on...');
+      toast.loading("Microphone turning on...");
     }
-    
+
     setMicEnabled(newMicState);
-    
+
     try {
       if (cameraEnabled || newMicState) {
         await requestMediaAccess(cameraEnabled, newMicState);
         if (newMicState) {
           toast.dismiss();
-          toast.success('Microphone is on');
+          toast.success("Microphone is on");
         }
       } else {
         // Turn off all media if both camera and mic are disabled
         if (stream) {
-          stream.getTracks().forEach(track => track.stop());
+          stream.getTracks().forEach((track) => track.stop());
           setStream(null);
         }
         toast.dismiss();
       }
-    } catch (error) {
+    } catch {
       toast.dismiss();
-      toast.error('Failed to access microphone');
+      toast.error("Failed to access microphone");
       setMicEnabled(!newMicState); // Revert state on error
     }
   };
 
   const handleStartCall = async () => {
     setIsStarting(true);
-    console.debug('Starting video call process');
-    
+    console.debug("Starting video call process");
+
     try {
       await onStartCall(stream);
     } catch (error) {
-      console.error('Error starting call:', error);
-      toast.error('Failed to start video session');
+      console.error("Error starting call:", error);
+      toast.error("Failed to start video session");
     } finally {
       setIsStarting(false);
     }
@@ -259,7 +262,7 @@ const VideoSessionControls = ({ onStartCall, onCancel }) => {
   React.useEffect(() => {
     return () => {
       if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach((track) => track.stop());
       }
     };
   }, [stream]);
@@ -292,13 +295,13 @@ const VideoSessionControls = ({ onStartCall, onCancel }) => {
             </div>
           )}
         </div>
-        
+
         {permissionError && (
           <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4">
             <p className="text-sm text-red-600">{permissionError}</p>
           </div>
         )}
-        
+
         <p className="text-sm text-gray-600 mb-4">
           Enable your camera and microphone to start the session
         </p>
@@ -309,9 +312,9 @@ const VideoSessionControls = ({ onStartCall, onCancel }) => {
           type="button"
           onClick={handleCameraToggle}
           className={`flex items-center px-4 py-2 rounded-md ${
-            cameraEnabled 
-              ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-              : 'bg-red-100 text-red-700 hover:bg-red-200'
+            cameraEnabled
+              ? "bg-green-100 text-green-700 hover:bg-green-200"
+              : "bg-red-100 text-red-700 hover:bg-red-200"
           }`}
           disabled={isStarting}
         >
@@ -332,9 +335,9 @@ const VideoSessionControls = ({ onStartCall, onCancel }) => {
           type="button"
           onClick={handleMicToggle}
           className={`flex items-center px-4 py-2 rounded-md ${
-            micEnabled 
-              ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-              : 'bg-red-100 text-red-700 hover:bg-red-200'
+            micEnabled
+              ? "bg-green-100 text-green-700 hover:bg-green-200"
+              : "bg-red-100 text-red-700 hover:bg-red-200"
           }`}
           disabled={isStarting}
         >
@@ -353,20 +356,16 @@ const VideoSessionControls = ({ onStartCall, onCancel }) => {
       </div>
 
       <div className="flex justify-end space-x-2">
-        <Button 
-          variant="outline" 
-          onClick={onCancel}
-          disabled={isStarting}
-        >
+        <Button variant="outline" onClick={onCancel} disabled={isStarting}>
           Cancel
         </Button>
-        <Button 
+        <Button
           variant="primary"
           onClick={handleStartCall}
           disabled={isStarting || (!cameraEnabled && !micEnabled)}
           className="bg-green-600 hover:bg-green-700"
         >
-          {isStarting ? 'Starting Session...' : 'Start Video Session'}
+          {isStarting ? "Starting Session..." : "Start Video Session"}
         </Button>
       </div>
     </div>
@@ -381,23 +380,21 @@ const DoctorDashboard = () => {
   const [showViewDetailsModal, setShowViewDetailsModal] = useState(false);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [showStartSessionModal, setShowStartSessionModal] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [showRejectModal, setShowRejectModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [appointmentDetails, setAppointmentDetails] = useState(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { 
-    data, 
-    loading, 
-    error, 
-    fetchDoctorDashboard, 
+  const {
+    data,
+    loading,
+    error,
+    fetchDoctorDashboard,
     fetchDoctorRecentActivity,
-    fetchNotifications
+    fetchNotifications,
   } = useData();
-  
+
   // Use cached data from DataContext
   const dashboardData = data.doctorDashboard || {
     todayStats: {
@@ -405,7 +402,7 @@ const DoctorDashboard = () => {
       completed: 0,
       pending: 0,
       confirmed: 0,
-      inProgress: 0
+      inProgress: 0,
     },
     totalPatients: 0,
     totalAppointments: 0,
@@ -413,14 +410,14 @@ const DoctorDashboard = () => {
     totalLabResults: 0,
     totalPrescriptions: 0,
     doctorProfile: {},
-    todayAppointments: []
+    todayAppointments: [],
   };
 
   const recentActivity = data.doctorRecentActivity || {
     recentAppointments: [],
     recentNotifications: [],
     recentMedicalRecords: [],
-    recentLabResults: []
+    recentLabResults: [],
   };
 
   // Load data if not already cached
@@ -434,7 +431,15 @@ const DoctorDashboard = () => {
     if (user?.userId && !data.notifications) {
       fetchNotifications();
     }
-  }, [user, data.doctorDashboard, data.doctorRecentActivity, data.notifications, fetchDoctorDashboard, fetchDoctorRecentActivity, fetchNotifications]);
+  }, [
+    user,
+    data.doctorDashboard,
+    data.doctorRecentActivity,
+    data.notifications,
+    fetchDoctorDashboard,
+    fetchDoctorRecentActivity,
+    fetchNotifications,
+  ]);
 
   // Show error toast if there's an error
   useEffect(() => {
@@ -445,185 +450,207 @@ const DoctorDashboard = () => {
 
   // Doctor statistics cards data
   const doctorStatCards = [
-    { 
-      title: 'Today Patients', 
-      value: dashboardData.todayStats.total, 
-      icon: User, 
-      color: 'blue',
-      onClick: () => navigate('/doctor/patients')
+    {
+      title: "Today Patients",
+      value: dashboardData.todayStats.total,
+      icon: User,
+      color: "blue",
+      onClick: () => navigate("/doctor/patients"),
     },
-    { 
-      title: 'Completed Today', 
-      value: dashboardData.todayStats.completed, 
-      icon: CheckCircle, 
-      color: 'green',
-      onClick: () => navigate('/doctor/appointments?status=completed')
+    {
+      title: "Completed Today",
+      value: dashboardData.todayStats.completed,
+      icon: CheckCircle,
+      color: "green",
+      onClick: () => navigate("/doctor/appointments?status=completed"),
     },
-    { 
-      title: 'Pending Today', 
-      value: dashboardData.todayStats.pending, 
-      icon: Clock, 
-      color: 'orange',
-      onClick: () => navigate('/doctor/appointments?status=pending')
+    {
+      title: "Pending Today",
+      value: dashboardData.todayStats.pending,
+      icon: Clock,
+      color: "orange",
+      onClick: () => navigate("/doctor/appointments?status=pending"),
     },
-    { 
-      title: 'Total Patients', 
-      value: dashboardData.totalPatients, 
-      icon: Users, 
-      color: 'purple',
-      onClick: () => navigate('/doctor/patients')
+    {
+      title: "Total Patients",
+      value: dashboardData.totalPatients,
+      icon: Users,
+      color: "purple",
+      onClick: () => navigate("/doctor/patients"),
     },
-    { 
-      title: 'Total Appointments', 
-      value: dashboardData.totalAppointments, 
-      icon: Calendar, 
-      color: 'bg-indigo-100',
-      onClick: () => navigate('/doctor/appointments')
+    {
+      title: "Total Appointments",
+      value: dashboardData.totalAppointments,
+      icon: Calendar,
+      color: "bg-indigo-100",
+      onClick: () => navigate("/doctor/appointments"),
     },
-    { 
-      title: 'Medical Records', 
-      value: dashboardData.totalMedicalRecords, 
-      icon: FileText, 
-      color: 'bg-red-100',
-      onClick: () => navigate('/doctor/medical-records')
-    }
+    {
+      title: "Medical Records",
+      value: dashboardData.totalMedicalRecords,
+      icon: FileText,
+      color: "bg-red-100",
+      onClick: () => navigate("/doctor/medical-records"),
+    },
   ];
 
   // Quick Actions with functionality
   const quickActions = [
-    { 
-      name: 'patients', 
-      icon: User, 
-      color: 'bg-green-100 hover:bg-green-200',
-      onClick: () => navigate('/doctor/patients'),
-      description: 'View patient list'
+    {
+      name: "patients",
+      icon: User,
+      color: "bg-green-100 hover:bg-green-200",
+      onClick: () => navigate("/doctor/patients"),
+      description: "View patient list",
     },
-    { 
-      name: 'appointments', 
-      icon: Calendar, 
-      color: 'bg-purple-100 hover:bg-purple-200',
-      onClick: () => navigate('/doctor/appointments'),
-      description: 'Manage appointments'
+    {
+      name: "appointments",
+      icon: Calendar,
+      color: "bg-purple-100 hover:bg-purple-200",
+      onClick: () => navigate("/doctor/appointments"),
+      description: "Manage appointments",
     },
-    { 
-      name: 'reports', 
-      icon: FileText, 
-      color: 'bg-yellow-100 hover:bg-yellow-200',
-      onClick: () => navigate('/doctor/reports'),
-      description: 'View medical reports'
+    {
+      name: "reports",
+      icon: FileText,
+      color: "bg-yellow-100 hover:bg-yellow-200",
+      onClick: () => navigate("/doctor/reports"),
+      description: "View medical reports",
     },
-    { 
-      name: 'medical records', 
-      icon: FileText, 
-      color: 'bg-indigo-100 hover:bg-indigo-200',
-      onClick: () => navigate('/doctor/medical-records'),
-      description: 'Access medical records'
+    {
+      name: "medical records",
+      icon: FileText,
+      color: "bg-indigo-100 hover:bg-indigo-200",
+      onClick: () => navigate("/doctor/medical-records"),
+      description: "Access medical records",
     },
-    { 
-      name: 'prescriptions', 
-      icon: FileText, 
-      color: 'bg-pink-100 hover:bg-pink-200',
-      onClick: () => navigate('/doctor/prescriptions'),
-      description: 'Manage prescriptions'
+    {
+      name: "prescriptions",
+      icon: FileText,
+      color: "bg-pink-100 hover:bg-pink-200",
+      onClick: () => navigate("/doctor/prescriptions"),
+      description: "Manage prescriptions",
     },
-    { 
-      name: 'lab results', 
-      icon: TestTube, 
-      color: 'bg-orange-100 hover:bg-orange-200',
-      onClick: () => navigate('/doctor/lab-results'),
-      description: 'View lab results'
+    {
+      name: "lab results",
+      icon: TestTube,
+      color: "bg-orange-100 hover:bg-orange-200",
+      onClick: () => navigate("/doctor/lab-results"),
+      description: "View lab results",
     },
-    { 
-      name: 'consultations', 
-      icon: Users, 
-      color: 'bg-teal-100 hover:bg-teal-200',
+    {
+      name: "consultations",
+      icon: Users,
+      color: "bg-teal-100 hover:bg-teal-200",
       onClick: () => setShowConsultationModal(true),
-      description: 'Start consultation'
+      description: "Start consultation",
     },
-    { 
-      name: 'follow-ups', 
-      icon: Calendar, 
-      color: 'bg-cyan-100 hover:bg-cyan-200',
+    {
+      name: "follow-ups",
+      icon: Calendar,
+      color: "bg-cyan-100 hover:bg-cyan-200",
       onClick: () => setShowFollowUpModal(true),
-      description: 'Schedule follow-ups'
-    }
+      description: "Schedule follow-ups",
+    },
   ];
 
   // Generate notices from notifications data
-  const notices = (data.notifications || []).slice(0, 5).map(notification => {
-    const createdAt = notification.createdAt ? new Date(notification.createdAt) : new Date();
+  const notices = (data.notifications || []).slice(0, 5).map((notification) => {
+    const createdAt = notification.createdAt
+      ? new Date(notification.createdAt)
+      : new Date();
     const isValidDate = !isNaN(createdAt.getTime());
-    
+
     return {
       id: notification.id,
-      title: `${notification.type === 'appointment' ? 'New Appointment' : 
-              notification.type === 'lab_result' ? 'Lab Result Ready' : 
-              notification.type === 'system' ? 'System Notice' : 
-              'Notification'}`,
-      description: notification.message || 'No description available',
-      date: isValidDate ? createdAt.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric' 
-      }) : 'Invalid Date',
-      time: isValidDate ? createdAt.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-      }) : '--:--',
-      type: notification.type || 'system',
-      isRead: notification.isRead
+      title: `${
+        notification.type === "appointment"
+          ? "New Appointment"
+          : notification.type === "lab_result"
+          ? "Lab Result Ready"
+          : notification.type === "system"
+          ? "System Notice"
+          : "Notification"
+      }`,
+      description: notification.message || "No description available",
+      date: isValidDate
+        ? createdAt.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          })
+        : "Invalid Date",
+      time: isValidDate
+        ? createdAt.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "--:--",
+      type: notification.type || "system",
+      isRead: notification.isRead,
     };
   });
 
   // Generate today's appointments from real data only
-  const todayAppointments = dashboardData.todayAppointments.map(appointment => {
-    // Safely parse the appointment date
-    let appointmentTime = 'N/A';
-    try {
-      const appointmentDate = new Date(appointment.appointmentDate);
-      if (!isNaN(appointmentDate.getTime())) {
-        appointmentTime = appointmentDate.toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        });
+  const todayAppointments = dashboardData.todayAppointments.map(
+    (appointment) => {
+      // Safely parse the appointment date
+      let appointmentTime = "N/A";
+      try {
+        const appointmentDate = new Date(appointment.appointmentDate);
+        if (!isNaN(appointmentDate.getTime())) {
+          appointmentTime = appointmentDate.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+        }
+      } catch (error) {
+        console.warn("Error parsing appointment date:", error);
       }
-    } catch (error) {
-      console.warn('Error parsing appointment date:', error);
-    }
 
-    return {
-      id: appointment.appointmentId || appointment.id,
-      patientName: appointment.patientName || 
-        `${appointment.patientFirstName || ''} ${appointment.patientLastName || ''}`.trim() || 
-        'Unknown Patient',
-      time: appointmentTime,
-      status: appointment.status || 'pending',
-      phone: appointment.patientPhoneNumber || appointment.phone || 'N/A',
-      email: appointment.patientEmail || appointment.email || 'N/A',
-      address: appointment.patientAddress || appointment.address || 'N/A',
-      reason: appointment.reasonForVisit || appointment.reason || 'No reason specified'
-    };
-  });
+      return {
+        id: appointment.appointmentId || appointment.id,
+        patientName:
+          appointment.patientName ||
+          `${appointment.patientFirstName || ""} ${
+            appointment.patientLastName || ""
+          }`.trim() ||
+          "Unknown Patient",
+        time: appointmentTime,
+        status: appointment.status || "pending",
+        phone: appointment.patientPhoneNumber || appointment.phone || "N/A",
+        email: appointment.patientEmail || appointment.email || "N/A",
+        address: appointment.patientAddress || appointment.address || "N/A",
+        reason:
+          appointment.reasonForVisit ||
+          appointment.reason ||
+          "No reason specified",
+      };
+    }
+  );
 
   // Generate calendar events from recent appointments
-  const calendarEvents = recentActivity.recentAppointments.map(appointment => ({
-    date: new Date(appointment.appointmentDate),
-    event: `Appointment: ${appointment.reasonForVisit || 'No reason specified'}`,
-    description: `Patient: ${appointment.patientName || 'Unknown'}`,
-    participants: appointment.patientName || 'Unknown'
-  }));
+  const calendarEvents = recentActivity.recentAppointments.map(
+    (appointment) => ({
+      date: new Date(appointment.appointmentDate),
+      event: `Appointment: ${
+        appointment.reasonForVisit || "No reason specified"
+      }`,
+      description: `Patient: ${appointment.patientName || "Unknown"}`,
+      participants: appointment.patientName || "Unknown",
+    })
+  );
 
   // Appointment action handlers
   const handleViewDetails = async (appointment) => {
     setSelectedAppointment(appointment);
-    setIsLoadingDetails(true);
-    setShowViewDetailsModal(true);
-    
+
     try {
       const response = await appointmentAPI.getById(appointment.id);
       setAppointmentDetails(response.data);
+      setShowViewDetailsModal(true);
     } catch (error) {
-      console.error('Error fetching appointment details:', error);
-      toast.error('Failed to load appointment details');
+      console.error("Error fetching appointment details:", error);
+      toast.error("Failed to load appointment details");
       setAppointmentDetails(null);
     } finally {
       setIsLoadingDetails(false);
@@ -645,197 +672,175 @@ const DoctorDashboard = () => {
 
     try {
       await appointmentAPI.update(selectedAppointment.id, {
-        appointmentDate: newDateTime
+        appointmentDate: newDateTime,
       });
-      
-      toast.success('Appointment rescheduled successfully');
+
+      toast.success("Appointment rescheduled successfully");
       setShowRescheduleModal(false);
       setSelectedAppointment(null);
-      
+
       // Refresh dashboard data
       if (data.doctorDashboard) {
         fetchDoctorDashboard();
       }
     } catch (error) {
-      console.error('Error rescheduling appointment:', error);
-      toast.error('Failed to reschedule appointment');
+      console.error("Error rescheduling appointment:", error);
+      toast.error("Failed to reschedule appointment");
     }
   };
 
   const handleStartVideoCall = async (stream) => {
     if (!selectedAppointment) return;
-    
-    console.debug('Starting video session for appointment:', selectedAppointment.id);
-    
+
+    console.debug(
+      "Starting video session for appointment:",
+      selectedAppointment.id
+    );
+
     try {
       // Step 1: Ring the patient
-      toast.loading('Ringing patient...');
-      
+      toast.loading("Ringing patient...");
+
       // Try to send notification to patient about incoming video call
       try {
         // If we can find the patient ID, send them a notification
         const patientId = selectedAppointment.patientId;
         if (patientId) {
           // This would create a real-time notification for the patient
-          console.debug('Sending ring notification to patient:', patientId);
+          console.debug("Sending ring notification to patient:", patientId);
         }
       } catch (notifyError) {
-        console.warn('Could not send ring notification:', notifyError);
+        console.warn("Could not send ring notification:", notifyError);
       }
-      
-      // Update appointment status to indicate ringing
-      const ringResponse = await appointmentAPI.update(selectedAppointment.id, { 
-        status: 'ringing' // Temporary status to indicate ringing
-      });
-      
+
       // Simulate patient acceptance (since we don't have real-time patient response)
       // In a real implementation, this would wait for patient response
       setTimeout(async () => {
         try {
           toast.dismiss();
-          toast.loading('Starting video session...');
-          
+          toast.loading("Starting video session...");
+
           // Step 2: Update appointment status to in-progress
-          await appointmentAPI.update(selectedAppointment.id, { status: 'in-progress' });
-          
+          await appointmentAPI.update(selectedAppointment.id, {
+            status: "in-progress",
+          });
+
           toast.dismiss();
-          toast.success('Video session started successfully');
+          toast.success("Video session started successfully");
           setShowStartSessionModal(false);
-          
+
           // Step 3: Navigate to dedicated session page
           navigate(`/doctor/session/${selectedAppointment.id}`, {
-            state: { 
+            state: {
               appointment: selectedAppointment,
-              initialStream: stream 
-            }
+              initialStream: stream,
+            },
           });
         } catch (error) {
           toast.dismiss();
-          console.error('Error initializing video session:', error);
-          toast.error('Failed to start video session');
+          console.error("Error initializing video session:", error);
+          toast.error("Failed to start video session");
         }
       }, 2000); // Simulate 2 second ring time
-      
     } catch (error) {
       toast.dismiss();
-      console.error('Error ringing patient:', error);
-      
+      console.error("Error ringing patient:", error);
+
       // Check if it's a backend error with specific message
       const errorMessage = error.response?.data?.error || error.message;
-      if (errorMessage.includes('not answer') || errorMessage.includes('timeout')) {
-        toast.error('Patient did not answer');
+      if (
+        errorMessage.includes("not answer") ||
+        errorMessage.includes("timeout")
+      ) {
+        toast.error("Patient did not answer");
       } else {
-        toast.error('Failed to start video session');
+        toast.error("Failed to start video session");
       }
     }
   };
 
-  // Handle appointment confirmation
-  const handleConfirmAppointment = () => {
-    if (!selectedAppointment) return;
-    setShowConfirmModal(true);
-  };
-
-  const confirmAppointment = async () => {
+  const handleConfirmAppointment = async () => {
     if (!selectedAppointment) return;
 
     setIsUpdatingStatus(true);
     try {
-      await appointmentAPI.update(selectedAppointment.id, { 
-        status: 'confirmed' 
+      await appointmentAPI.update(selectedAppointment.id, {
+        status: "confirmed",
       });
-      
-      toast.success(`Appointment with ${selectedAppointment.patientName} has been confirmed`);
-      setShowConfirmModal(false);
+
+      toast.success(
+        `Appointment with ${selectedAppointment.patientName} has been confirmed`
+      );
       setShowViewDetailsModal(false);
       setSelectedAppointment(null);
       setAppointmentDetails(null);
-      
+
       // Refresh dashboard data
       if (data.doctorDashboard) {
         fetchDoctorDashboard();
       }
     } catch (error) {
-      console.error('Error confirming appointment:', error);
-      toast.error('Failed to confirm appointment');
+      console.error("Error confirming appointment:", error);
+      toast.error("Failed to confirm appointment");
     } finally {
       setIsUpdatingStatus(false);
     }
   };
 
-  // Handle appointment rejection
-  const handleRejectAppointment = () => {
-    if (!selectedAppointment) return;
-    setShowRejectModal(true);
-  };
-
-  const rejectAppointment = async () => {
+  const handleRejectAppointment = async () => {
     if (!selectedAppointment) return;
 
     setIsUpdatingStatus(true);
     try {
-      await appointmentAPI.update(selectedAppointment.id, { 
-        status: 'cancelled' 
+      await appointmentAPI.update(selectedAppointment.id, {
+        status: "cancelled",
       });
-      
-      toast.success(`Appointment with ${selectedAppointment.patientName} has been rejected`);
-      setShowRejectModal(false);
+
+      toast.success(
+        `Appointment with ${selectedAppointment.patientName} has been rejected`
+      );
       setShowViewDetailsModal(false);
       setSelectedAppointment(null);
       setAppointmentDetails(null);
-      
+
       // Refresh dashboard data
       if (data.doctorDashboard) {
         fetchDoctorDashboard();
       }
     } catch (error) {
-      console.error('Error rejecting appointment:', error);
-      toast.error('Failed to reject appointment');
+      console.error("Error rejecting appointment:", error);
+      toast.error("Failed to reject appointment");
     } finally {
       setIsUpdatingStatus(false);
     }
   };
-
-  if (loading) {
-    return (
-      <>
-        <TopLoadingBar loading />
-        <div className="min-h-screen" />
-      </>
-    );
-  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Welcome back, Dr. {user?.firstName} {user?.lastName}</h3>
-      </div>
+    <DashboardLayout 
+      loading={loading}
+      loadingColor="bg-green-600"
+    >
+      <PageHeader 
+        title={`Welcome back, Dr. ${user?.firstName} ${user?.lastName}`}
+        subtitle="Here's what's happening with your practice today"
+      />
 
-      {/* Overview */}
+      {/* Overview Section */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex items-center mb-4">
           <h2 className="text-xl font-semibold text-gray-900">Overview</h2>
         </div>
-
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {doctorStatCards.map((stat, index) => (
-            <StatCard
-              key={index}
-              title={stat.title}
-              value={stat.value}
-              icon={stat.icon}
-              color={stat.color}
-              onClick={stat.onClick}
-            />
-          ))}
-        </div>
+        <StatisticsGrid 
+          stats={doctorStatCards}
+          columns="grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+        />
       </div>
-
 
       {/* Today's Appointments */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Today's Appointments</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          Today's Appointments
+        </h3>
         <div className="space-y-4">
           {todayAppointments.length > 0 ? (
             todayAppointments.map((appointment) => (
@@ -850,13 +855,16 @@ const DoctorDashboard = () => {
           ) : (
             <div className="text-center py-12 text-gray-500">
               <Calendar className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-              <h4 className="text-lg font-medium text-gray-900 mb-2">No appointments scheduled for today</h4>
+              <h4 className="text-lg font-medium text-gray-900 mb-2">
+                No appointments scheduled for today
+              </h4>
               <p className="text-sm text-gray-600 mb-4">
-                You have a clear schedule today. Use this time to catch up on other tasks.
+                You have a clear schedule today. Use this time to catch up on
+                other tasks.
               </p>
-              <Button 
-                variant="outline" 
-                onClick={() => navigate('/doctor/appointments')}
+              <Button
+                variant="outline"
+                onClick={() => navigate("/doctor/appointments")}
                 className="inline-flex items-center"
               >
                 <Calendar className="h-4 w-4 mr-2" />
@@ -868,37 +876,28 @@ const DoctorDashboard = () => {
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {quickActions.map((action, index) => (
-            <QuickActionCard
-              key={index}
-              name={action.name}
-              icon={action.icon}
-              color={action.color}
-              onClick={action.onClick}
-              description={action.description}
-            />
-          ))}
-        </div>
-      </div>
+      <QuickActions
+        actions={quickActions}
+        title="Quick Actions"
+        columns="grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
+      />
 
       {/* Bottom Section - Calendar and Noticeboard */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CalendarComponent
+        <CalendarSection
           currentMonth={currentMonth}
           onMonthChange={setCurrentMonth}
           events={calendarEvents}
           onDayClick={(day) => {
             // Handle day click - could open appointment details
-            console.log('Day clicked:', day);
+            console.log("Day clicked:", day);
           }}
+          title="Appointment Calendar"
         />
-        <Noticeboard 
+        <NoticeboardSection
           notices={notices}
           title="System Notifications"
-          onViewAll={() => navigate('/doctor/notifications')}
+          onViewAll={() => navigate("/doctor/notifications")}
         />
       </div>
 
@@ -912,12 +911,13 @@ const DoctorDashboard = () => {
         <div className="space-y-4">
           <p>Schedule appointment modal content would go here.</p>
           <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => setShowScheduleModal(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowScheduleModal(false)}
+            >
               Cancel
             </Button>
-            <Button variant="primary">
-              Schedule
-            </Button>
+            <Button variant="primary">Schedule</Button>
           </div>
         </div>
       </Modal>
@@ -931,12 +931,13 @@ const DoctorDashboard = () => {
         <div className="space-y-4">
           <p>Consultation modal content would go here.</p>
           <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => setShowConsultationModal(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowConsultationModal(false)}
+            >
               Cancel
             </Button>
-            <Button variant="primary">
-              Start Consultation
-            </Button>
+            <Button variant="primary">Start Consultation</Button>
           </div>
         </div>
       </Modal>
@@ -950,12 +951,13 @@ const DoctorDashboard = () => {
         <div className="space-y-4">
           <p>Follow-up scheduling modal content would go here.</p>
           <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => setShowFollowUpModal(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowFollowUpModal(false)}
+            >
               Cancel
             </Button>
-            <Button variant="primary">
-              Schedule Follow-up
-            </Button>
+            <Button variant="primary">Schedule Follow-up</Button>
           </div>
         </div>
       </Modal>
@@ -975,36 +977,44 @@ const DoctorDashboard = () => {
           {isLoadingDetails ? (
             <>
               <TopLoadingBar loading />
-              <div className="py-8 text-center text-gray-500">Loading appointment details...</div>
+              <div className="py-8 text-center text-gray-500">
+                Loading appointment details...
+              </div>
             </>
           ) : appointmentDetails ? (
             <div>
               {/* Patient Information */}
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <h4 className="font-semibold text-gray-900 mb-3">Patient Information</h4>
+                <h4 className="font-semibold text-gray-900 mb-3">
+                  Patient Information
+                </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex items-center">
                     <User className="h-4 w-4 text-gray-500 mr-2" />
                     <span className="text-sm">
-                      <strong>Name:</strong> {selectedAppointment?.patientName || 'N/A'}
+                      <strong>Name:</strong>{" "}
+                      {selectedAppointment?.patientName || "N/A"}
                     </span>
                   </div>
                   <div className="flex items-center">
                     <Mail className="h-4 w-4 text-gray-500 mr-2" />
                     <span className="text-sm">
-                      <strong>Email:</strong> {selectedAppointment?.email || 'N/A'}
+                      <strong>Email:</strong>{" "}
+                      {selectedAppointment?.email || "N/A"}
                     </span>
                   </div>
                   <div className="flex items-center">
                     <Phone className="h-4 w-4 text-gray-500 mr-2" />
                     <span className="text-sm">
-                      <strong>Phone:</strong> {selectedAppointment?.phone || 'N/A'}
+                      <strong>Phone:</strong>{" "}
+                      {selectedAppointment?.phone || "N/A"}
                     </span>
                   </div>
                   <div className="flex items-center">
                     <MapPin className="h-4 w-4 text-gray-500 mr-2" />
                     <span className="text-sm">
-                      <strong>Address:</strong> {selectedAppointment?.address || 'N/A'}
+                      <strong>Address:</strong>{" "}
+                      {selectedAppointment?.address || "N/A"}
                     </span>
                   </div>
                 </div>
@@ -1012,30 +1022,36 @@ const DoctorDashboard = () => {
 
               {/* Appointment Information */}
               <div className="bg-blue-50 rounded-lg p-4 mb-4">
-                <h4 className="font-semibold text-gray-900 mb-3">Appointment Information</h4>
+                <h4 className="font-semibold text-gray-900 mb-3">
+                  Appointment Information
+                </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex items-center">
                     <Calendar className="h-4 w-4 text-gray-500 mr-2" />
                     <span className="text-sm">
-                      <strong>Date & Time:</strong> {selectedAppointment?.time || 'N/A'}
+                      <strong>Date & Time:</strong>{" "}
+                      {selectedAppointment?.time || "N/A"}
                     </span>
                   </div>
                   <div className="flex items-center">
                     <Clock className="h-4 w-4 text-gray-500 mr-2" />
                     <span className="text-sm">
-                      <strong>Status:</strong> {selectedAppointment?.status || 'N/A'}
+                      <strong>Status:</strong>{" "}
+                      {selectedAppointment?.status || "N/A"}
                     </span>
                   </div>
                   <div className="flex items-center">
                     <FileText className="h-4 w-4 text-gray-500 mr-2" />
                     <span className="text-sm">
-                      <strong>Reason:</strong> {appointmentDetails.reasonForVisit || 'N/A'}
+                      <strong>Reason:</strong>{" "}
+                      {appointmentDetails.reasonForVisit || "N/A"}
                     </span>
                   </div>
                   <div className="flex items-center">
                     <User className="h-4 w-4 text-gray-500 mr-2" />
                     <span className="text-sm">
-                      <strong>Mode:</strong> {appointmentDetails.appointmentMode || 'N/A'}
+                      <strong>Mode:</strong>{" "}
+                      {appointmentDetails.appointmentMode || "N/A"}
                     </span>
                   </div>
                 </div>
@@ -1044,19 +1060,25 @@ const DoctorDashboard = () => {
               {/* Payment Information */}
               {appointmentDetails.appointmentAmount && (
                 <div className="bg-green-50 rounded-lg p-4">
-                  <h4 className="font-semibold text-gray-900 mb-3">Payment Information</h4>
+                  <h4 className="font-semibold text-gray-900 mb-3">
+                    Payment Information
+                  </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="text-sm">
-                      <strong>Amount:</strong> ${appointmentDetails.appointmentAmount || 0}
+                      <strong>Amount:</strong> $
+                      {appointmentDetails.appointmentAmount || 0}
                     </div>
                     <div className="text-sm">
-                      <strong>Paid:</strong> ${appointmentDetails.paidAmount || 0}
+                      <strong>Paid:</strong> $
+                      {appointmentDetails.paidAmount || 0}
                     </div>
                     <div className="text-sm">
-                      <strong>Payment Status:</strong> {appointmentDetails.paymentStatus || 'N/A'}
+                      <strong>Payment Status:</strong>{" "}
+                      {appointmentDetails.paymentStatus || "N/A"}
                     </div>
                     <div className="text-sm">
-                      <strong>Payment Method:</strong> {appointmentDetails.paymentMethod || 'N/A'}
+                      <strong>Payment Method:</strong>{" "}
+                      {appointmentDetails.paymentMethod || "N/A"}
                     </div>
                   </div>
                 </div>
@@ -1068,49 +1090,53 @@ const DoctorDashboard = () => {
               <p>Failed to load appointment details.</p>
             </div>
           )}
-          
+
           <div className="flex justify-between items-center">
             {/* Status-based action buttons */}
             <div className="flex space-x-2">
-              {selectedAppointment?.status === 'pending' && (
+              {selectedAppointment?.status === "pending" && (
                 <>
-                  <Button 
+                  <Button
                     variant="primary"
                     onClick={handleConfirmAppointment}
                     disabled={isUpdatingStatus}
                     className="bg-green-600 hover:bg-green-700 focus:ring-green-500"
                   >
                     <Check className="h-4 w-4 mr-2" />
-                    {isUpdatingStatus ? 'Confirming...' : 'Confirm'}
+                    {isUpdatingStatus ? "Confirming..." : "Confirm"}
                   </Button>
-                  <Button 
+                  <Button
                     variant="outline"
                     onClick={handleRejectAppointment}
                     disabled={isUpdatingStatus}
                     className="border-red-300 text-red-700 hover:bg-red-50 focus:ring-red-500"
                   >
                     <XCircle className="h-4 w-4 mr-2" />
-                    {isUpdatingStatus ? 'Rejecting...' : 'Reject'}
+                    {isUpdatingStatus ? "Rejecting..." : "Reject"}
                   </Button>
                 </>
               )}
-              {selectedAppointment?.status === 'confirmed' && (
+              {selectedAppointment?.status === "confirmed" && (
                 <div className="flex items-center text-green-600">
                   <CheckCircle className="h-4 w-4 mr-2" />
-                  <span className="text-sm font-medium">Appointment Confirmed</span>
+                  <span className="text-sm font-medium">
+                    Appointment Confirmed
+                  </span>
                 </div>
               )}
-              {selectedAppointment?.status === 'cancelled' && (
+              {selectedAppointment?.status === "cancelled" && (
                 <div className="flex items-center text-red-600">
                   <XCircle className="h-4 w-4 mr-2" />
-                  <span className="text-sm font-medium">Appointment Cancelled</span>
+                  <span className="text-sm font-medium">
+                    Appointment Cancelled
+                  </span>
                 </div>
               )}
             </div>
-            
+
             {/* Close button */}
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setShowViewDetailsModal(false);
                 setSelectedAppointment(null);
@@ -1136,12 +1162,16 @@ const DoctorDashboard = () => {
       >
         <div className="space-y-4">
           <div className="bg-blue-50 rounded-lg p-4 mb-4">
-            <h4 className="font-semibold text-gray-900 mb-2">Current Appointment</h4>
+            <h4 className="font-semibold text-gray-900 mb-2">
+              Current Appointment
+            </h4>
             <p className="text-sm text-gray-600">
-              <strong>Patient:</strong> {selectedAppointment?.patientName || 'N/A'}
+              <strong>Patient:</strong>{" "}
+              {selectedAppointment?.patientName || "N/A"}
             </p>
             <p className="text-sm text-gray-600">
-              <strong>Current Time:</strong> {selectedAppointment?.time || 'N/A'}
+              <strong>Current Time:</strong>{" "}
+              {selectedAppointment?.time || "N/A"}
             </p>
           </div>
 
@@ -1167,12 +1197,15 @@ const DoctorDashboard = () => {
       >
         <div className="space-y-6">
           <div className="bg-green-50 rounded-lg p-4">
-            <h4 className="font-semibold text-gray-900 mb-2">Patient Information</h4>
+            <h4 className="font-semibold text-gray-900 mb-2">
+              Patient Information
+            </h4>
             <p className="text-sm text-gray-600">
-              <strong>Name:</strong> {selectedAppointment?.patientName || 'N/A'}
+              <strong>Name:</strong> {selectedAppointment?.patientName || "N/A"}
             </p>
             <p className="text-sm text-gray-600">
-              <strong>Appointment Time:</strong> {selectedAppointment?.time || 'N/A'}
+              <strong>Appointment Time:</strong>{" "}
+              {selectedAppointment?.time || "N/A"}
             </p>
           </div>
 
@@ -1185,33 +1218,7 @@ const DoctorDashboard = () => {
           />
         </div>
       </Modal>
-
-      {/* Confirmation Modal for Confirming Appointment */}
-      <ConfirmationModal
-        isOpen={showConfirmModal}
-        onClose={() => setShowConfirmModal(false)}
-        onConfirm={confirmAppointment}
-        title="Confirm Appointment"
-        message={`Are you sure you want to confirm the appointment with ${selectedAppointment?.patientName}?\n\nThis will notify the patient that their appointment has been confirmed.`}
-        confirmText="Confirm Appointment"
-        cancelText="Cancel"
-        type="info"
-        isLoading={isUpdatingStatus}
-      />
-
-      {/* Confirmation Modal for Rejecting Appointment */}
-      <ConfirmationModal
-        isOpen={showRejectModal}
-        onClose={() => setShowRejectModal(false)}
-        onConfirm={rejectAppointment}
-        title="Reject Appointment"
-        message={`Are you sure you want to reject the appointment with ${selectedAppointment?.patientName}?\n\nThis will cancel the appointment and notify the patient.`}
-        confirmText="Reject Appointment"
-        cancelText="Cancel"
-        type="danger"
-        isLoading={isUpdatingStatus}
-      />
-    </div>
+    </DashboardLayout>
   );
 };
 

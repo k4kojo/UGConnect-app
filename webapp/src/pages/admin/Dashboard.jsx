@@ -12,12 +12,13 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import {
-  Calendar as CalendarComponent,
-  Noticeboard,
-  QuickActionCard,
-  StatCard,
-  TopLoadingBar,
-} from "../../components/ui";
+  DashboardLayout,
+  PageHeader,
+  StatisticsGrid,
+  QuickActions,
+  CalendarSection,
+  NoticeboardSection,
+} from "../../components/shared";
 import { useData } from "../../contexts/DataContext.jsx";
 
 const AdminDashboard = () => {
@@ -132,16 +133,6 @@ const AdminDashboard = () => {
     },
   ];
 
-  // Role statistics for overview section
-  // const roleStats = [
-  //   { name: 'doctor', count: dashboardData.roleStats.doctor },
-  //   { name: 'patient', count: dashboardData.roleStats.patient },
-  //   { name: 'nurse', count: dashboardData.roleStats.nurse },
-  //   { name: 'pharmacist', count: dashboardData.roleStats.pharmacist },
-  //   { name: 'laboratorist', count: dashboardData.roleStats.laboratorist },
-  //   { name: 'accountant', count: dashboardData.roleStats.accountant }
-  // ];
-
   // Quick actions data
   const quickActions = [
     {
@@ -244,123 +235,105 @@ const AdminDashboard = () => {
   );
 
   return (
-    <>
-      <TopLoadingBar
-        loading={loading}
-        colorClass="bg-blue-600"
-        trackClass="bg-blue-200/50"
+    <DashboardLayout 
+      loading={loading}
+      loadingColor="bg-blue-600"
+    >
+      <PageHeader 
+        title="Admin Dashboard"
+        subtitle="Manage your healthcare system from here"
       />
-      <div className="space-y-6">
-        {/* Admin Dashboard Overview */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center mb-4">
-            <Info className="h-5 w-5 text-blue-600 mr-2" />
-            <h2 className="text-xl font-semibold text-gray-900">Overview</h2>
-          </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {/* Doctor Count */}
-            <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900">
-                {dashboardData.roleStats.doctor}
-              </div>
-              <div className="text-sm text-gray-600">Doctor</div>
-            </div>
-
-            {/* Patient Count */}
-            <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900">
-                {dashboardData.roleStats.patient}
-              </div>
-              <div className="text-sm text-gray-600">Patient</div>
-            </div>
-
-            {/* Total Users */}
-            <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900">
-                {dashboardData.totalUsers}
-              </div>
-              <div className="text-sm text-gray-600">Total Users</div>
-            </div>
-
-            {/* Total Appointments */}
-            <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900">
-                {dashboardData.appointmentStats.total}
-              </div>
-              <div className="text-sm text-gray-600">Total Appointments</div>
-            </div>
-
-            {/* Total Revenue */}
-            <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900">
-                {formatCurrency(dashboardData.paymentStats.totalRevenue)}
-              </div>
-              <div className="text-sm text-gray-600">Total Revenue</div>
-            </div>
-
-            {/* Pending Appointments */}
-            <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900">
-                {dashboardData.appointmentStats.pending}
-              </div>
-              <div className="text-sm text-gray-600">Pending Appointments</div>
-            </div>
-          </div>
+      {/* Admin Dashboard Overview */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center mb-4">
+          <Info className="h-5 w-5 text-blue-600 mr-2" />
+          <h2 className="text-xl font-semibold text-gray-900">System Overview</h2>
         </div>
 
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {statCards.map((stat, index) => (
-            <StatCard
-              key={index}
-              title={stat.title}
-              value={stat.value}
-              icon={stat.icon}
-              color={stat.color}
-              onClick={stat.onClick}
-            />
-          ))}
-        </div>
-
-        {/* Quick Actions */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Quick Actions
-          </h3>
-          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {quickActions.map((action, index) => (
-              <QuickActionCard
-                key={index}
-                name={action.name}
-                icon={action.icon}
-                color={action.color}
-                onClick={action.onClick}
-                description={action.description}
-              />
-            ))}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {/* Doctor Count */}
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">
+              {dashboardData.roleStats.doctor}
+            </div>
+            <div className="text-sm text-gray-600">Doctor</div>
           </div>
-        </div>
 
-        {/* Bottom Section - Calendar and Noticeboard */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <CalendarComponent
-            currentMonth={currentMonth}
-            onMonthChange={setCurrentMonth}
-            events={calendarEvents}
-            onDayClick={(day) => {
-              // Handle day click - could open appointment details
-              console.log("Day clicked:", day);
-            }}
-          />
-          <Noticeboard
-            notices={notices}
-            title="Notifications"
-            onViewAll={() => navigate("/admin/notifications")}
-          />
+          {/* Patient Count */}
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">
+              {dashboardData.roleStats.patient}
+            </div>
+            <div className="text-sm text-gray-600">Patient</div>
+          </div>
+
+          {/* Total Users */}
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">
+              {dashboardData.totalUsers}
+            </div>
+            <div className="text-sm text-gray-600">Total Users</div>
+          </div>
+
+          {/* Total Appointments */}
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">
+              {dashboardData.appointmentStats.total}
+            </div>
+            <div className="text-sm text-gray-600">Total Appointments</div>
+          </div>
+
+          {/* Total Revenue */}
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">
+              {formatCurrency(dashboardData.paymentStats.totalRevenue)}
+            </div>
+            <div className="text-sm text-gray-600">Total Revenue</div>
+          </div>
+
+          {/* Pending Appointments */}
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">
+              {dashboardData.appointmentStats.pending}
+            </div>
+            <div className="text-sm text-gray-600">Pending Appointments</div>
+          </div>
         </div>
       </div>
-    </>
+
+      {/* Key Statistics */}
+      <StatisticsGrid 
+        stats={statCards}
+        columns="grid-cols-1 md:grid-cols-2 lg:grid-cols-4"
+      />
+
+      {/* Quick Actions */}
+      <QuickActions 
+        actions={quickActions}
+        title="Administrative Actions"
+        columns="grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+      />
+
+      {/* Bottom Section - Calendar and Noticeboard */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <CalendarSection
+          currentMonth={currentMonth}
+          onMonthChange={setCurrentMonth}
+          events={calendarEvents}
+          onDayClick={(day) => {
+            // Handle day click - could open appointment details
+            console.log("Day clicked:", day);
+          }}
+          title="System Calendar"
+        />
+        <NoticeboardSection
+          notices={notices}
+          title="System Notifications"
+          onViewAll={() => navigate("/admin/notifications")}
+        />
+      </div>
+    </DashboardLayout>
   );
 };
 

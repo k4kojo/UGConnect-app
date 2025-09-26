@@ -1,5 +1,4 @@
-import React from 'react';
-import AppointmentsComponent from '../admin/Appointments';
+import AppointmentsComponent from "../../components/shared/Appointments";
 
 const DoctorAppointments = () => {
   return <AppointmentsComponent />;

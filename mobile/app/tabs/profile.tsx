@@ -49,7 +49,6 @@ export default function ProfileScreen() {
   // Update local profile state when cached data changes
   useEffect(() => {
     if (profileData) {
-      console.log('Profile data from cache:', profileData);
       
       // Handle nested structure - cached data has user object nested inside
       const userData = profileData.user || profileData;
@@ -67,7 +66,6 @@ export default function ProfileScreen() {
       const getStoredUser = async () => {
         try {
           const user = await userService.getStoredUser();
-          console.log('Stored user data:', user);
           if (user) {
             setProfile({
               firstName: user.firstName || "",

@@ -112,13 +112,6 @@ export default function AccountInformationScreen() {
       const separator = result.includes('?') ? '&' : '?';
       result = `${result}${separator}t=${Date.now()}`;
     }
-    
-    console.log('getCurrentProfilePicture:', {
-      tempImageUri,
-      userProfilePicture: user?.profilePicture,
-      isValidUrl: isValidImageUrl(user?.profilePicture ?? null),
-      result
-    });
     return result || undefined; // Convert null to undefined
   };
 
@@ -151,8 +144,6 @@ export default function AccountInformationScreen() {
       if (!imageUri) {
         throw new Error("No image selected");
       }
-
-      console.log('Processing image URI:', imageUri);
       
       // Validate image format
       const fileExtension = imageUri.split('.').pop()?.toLowerCase();

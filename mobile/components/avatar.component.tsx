@@ -53,7 +53,6 @@ const Avatar: React.FC<AvatarProps> = ({
   }, [imageUrl]);
 
   if (imageUrl && !imageLoadError) {
-    console.log('Avatar rendering with imageUrl:', imageUrl);
     
     const imageComponent = (
       <Image
@@ -67,11 +66,9 @@ const Avatar: React.FC<AvatarProps> = ({
         resizeMode="cover"
         onError={(error) => {
           console.error('Avatar image failed to load:', error.nativeEvent.error);
-          console.error('Failed URL:', imageUrl);
           setImageLoadError(true); // This will cause a re-render with fallback
         }}
         onLoad={() => {
-          console.log('Avatar image loaded successfully:', imageUrl);
         }}
       />
     );

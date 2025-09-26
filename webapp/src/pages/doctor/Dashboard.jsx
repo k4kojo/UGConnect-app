@@ -20,17 +20,18 @@ import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import {
-  DashboardLayout,
-  PageHeader,
-  StatisticsGrid,
-  QuickActions,
   CalendarSection,
+  DashboardLayout,
   NoticeboardSection,
+  PageHeader,
+  QuickActions,
+  StatisticsGrid,
 } from "../../components/shared";
 import {
   AppointmentCard,
   Button,
   Modal,
+  TopLoadingBar,
 } from "../../components/ui";
 import { useAuth } from "../../contexts/AuthContext.jsx";
 import { useData } from "../../contexts/DataContext.jsx";
@@ -393,6 +394,11 @@ const DoctorDashboard = () => {
     fetchDoctorDashboard,
     fetchDoctorRecentActivity,
     fetchNotifications,
+    fetchDoctorPatients,
+    fetchDoctorAppointments,
+    fetchDoctorMedicalRecords,
+    fetchDoctorPrescriptions,
+    fetchDoctorLabResults,
   } = useData();
 
   // Use cached data from DataContext
@@ -420,26 +426,29 @@ const DoctorDashboard = () => {
     recentLabResults: [],
   };
 
-  // Load data if not already cached
+  // Load data once per user session: core first, then secondary in background
   useEffect(() => {
-    if (user?.userId && !data.doctorDashboard) {
-      fetchDoctorDashboard();
-    }
-    if (user?.userId && !data.doctorRecentActivity) {
-      fetchDoctorRecentActivity();
-    }
-    if (user?.userId && !data.notifications) {
-      fetchNotifications();
-    }
-  }, [
-    user,
-    data.doctorDashboard,
-    data.doctorRecentActivity,
-    data.notifications,
-    fetchDoctorDashboard,
-    fetchDoctorRecentActivity,
-    fetchNotifications,
-  ]);
+    const loadCoreThenSecondary = async () => {
+      if (!user?.userId) return;
+
+      try {
+        await fetchDoctorDashboard();
+
+        Promise.allSettled([
+          fetchDoctorRecentActivity(),
+          fetchNotifications(),
+          fetchDoctorPatients?.(),
+          fetchDoctorAppointments?.(),
+          fetchDoctorPrescriptions?.(),
+          fetchDoctorLabResults?.(),
+        ]).catch(() => {});
+      } catch (err) {
+        console.error("Error fetching dashboard core data:", err);
+        toast.error("Failed to load dashboard");
+      }
+    };
+    loadCoreThenSecondary();
+  }, [user?.userId]);
 
   // Show error toast if there's an error
   useEffect(() => {
@@ -816,11 +825,8 @@ const DoctorDashboard = () => {
   };
 
   return (
-    <DashboardLayout 
-      loading={loading}
-      loadingColor="bg-green-600"
-    >
-      <PageHeader 
+    <DashboardLayout loading={loading} loadingColor="bg-green-600">
+      <PageHeader
         title={`Welcome back, Dr. ${user?.firstName} ${user?.lastName}`}
         subtitle="Here's what's happening with your practice today"
       />
@@ -830,7 +836,7 @@ const DoctorDashboard = () => {
         <div className="flex items-center mb-4">
           <h2 className="text-xl font-semibold text-gray-900">Overview</h2>
         </div>
-        <StatisticsGrid 
+        <StatisticsGrid
           stats={doctorStatCards}
           columns="grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
         />

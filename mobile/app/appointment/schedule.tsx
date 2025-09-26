@@ -41,7 +41,7 @@ const ScheduleAppointment = () => {
 	const { t } = useLanguage();
 
 	const [searchQuery, setSearchQuery] = useState("");
-	
+
 	// Use cache service for doctors data
 	const {
 		data: doctors,
@@ -104,7 +104,7 @@ const ScheduleAppointment = () => {
 					value={searchQuery}
 					onChangeText={setSearchQuery}
 				/>
-				<TouchableOpacity style={styles.filterButton} onPress={() => {}}>
+				<TouchableOpacity style={styles.filterButton} onPress={() => { }}>
 					<Ionicons name="filter-outline" size={20} color={themeColors.text} />
 				</TouchableOpacity>
 			</View>
@@ -117,7 +117,7 @@ const ScheduleAppointment = () => {
 					<Text style={[styles.errorText, { color: themeColors.text }]}>
 						{t("schedule.errorLoading")}
 					</Text>
-					<TouchableOpacity 
+					<TouchableOpacity
 						style={[styles.retryButton, { backgroundColor: Colors.brand.primary }]}
 						onPress={() => refreshDoctors()}
 					>
@@ -138,20 +138,20 @@ const ScheduleAppointment = () => {
 					style={{ flex: 1 }}
 					refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={themeColors.text} />}
 					renderItem={({ item }) => (
-						<View style={[styles.doctorCard, { backgroundColor: themeColors.card }]}> 
-							<View style={styles.doctorCardLeft}>								
-                <Avatar
-                  imageUrl={(item as any).imageUrl}
-                  firstName={item.firstName || "D"}
-                  lastName={item.lastName || "r"}
-                  size={60}
-                  border
-                  containerStyle={{ backgroundColor: brandColors.primary + '15', borderColor: brandColors.primary + '30' }}
-                  onPress={() =>
-                    router.push({ pathname: "/doctor-profile", params: { doctorId: item.doctorId ?? "" } })
-                  }
-                />
-								
+						<View style={[styles.doctorCard, { backgroundColor: themeColors.card }]}>
+							<View style={styles.doctorCardLeft}>
+								<Avatar
+									imageUrl={(item as any).imageUrl}
+									firstName={item.firstName || "D"}
+									lastName={item.lastName || "r"}
+									size={60}
+									border
+									containerStyle={{ backgroundColor: brandColors.primary + '15', borderColor: brandColors.primary + '30' }}
+									onPress={() =>
+										router.push({ pathname: "/doctor-profile", params: { doctorId: item.doctorId ?? "" } })
+									}
+								/>
+
 								<View style={styles.doctorInfo}>
 									<Text style={[styles.doctorName, { color: themeColors.text }]}>
 										{`${item.firstName || ""} ${item.lastName || ""}`.trim() || t("schedule.doctorFallback")}
@@ -167,13 +167,17 @@ const ScheduleAppointment = () => {
 							</View>
 
 							<View style={styles.priceColumn}>
-								<Text style={[styles.priceText, { color: Colors.brand.tertiary }]}>₵{(item as any).consultationFee || "150"}</Text>
-								<Text style={[styles.feeLabel, { color: themeColors.subText }]}>{t("schedule.consultationFee")}</Text>
-								<TouchableOpacity style={[styles.selectBtn, { backgroundColor: Colors.brand.primary }]}
-									onPress={() => {
-										const fullName = `${item.firstName || ""} ${item.lastName || ""}`.trim() || "Doctor";
-										const initials = `${(item.firstName?.[0] || "D")}${(item.lastName?.[0] || "r")}`.toUpperCase();
-										const fee = String((item as any).consultationFee || ((item.experienceYears ? Number(item.experienceYears) : 100) * 1));
+								{(() => {
+									const calculatedFee = (item as any).consultationFee || ((item.experienceYears ? Number(item.experienceYears) : 100) * 1);
+									return (
+										<>
+											<Text style={[styles.priceText, { color: Colors.brand.tertiary }]}>₵{calculatedFee}</Text>
+											<Text style={[styles.feeLabel, { color: themeColors.subText }]}>{t("schedule.consultationFee")}</Text>
+											<TouchableOpacity style={[styles.selectBtn, { backgroundColor: Colors.brand.primary }]}
+												onPress={() => {
+													const fullName = `${item.firstName || ""} ${item.lastName || ""}`.trim() || "Doctor";
+													const initials = `${(item.firstName?.[0] || "D")}${(item.lastName?.[0] || "r")}`.toUpperCase();
+													const fee = String(calculatedFee);
 										router.push({
 											pathname: "/appointment/select-time",
 											params: {
@@ -188,6 +192,9 @@ const ScheduleAppointment = () => {
 								>
 									<Text style={styles.selectBtnText}>{t("schedule.selectDoctor")}</Text>
 								</TouchableOpacity>
+										</>
+									);
+								})()}
 							</View>
 						</View>
 					)}

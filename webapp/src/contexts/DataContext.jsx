@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { userAPI, userSettingsAPI } from '../services/api';
 import { dashboardService } from '../services/dashboardService.js';
-import { doctorDashboardService } from '../services/doctorDashboardService.js';
 import { useAuth } from './AuthContext';
 
 const DataContext = createContext();
@@ -69,6 +68,65 @@ function DataProvider({ children }) {
     return false;
   };
 
+  // Doctor-specific helper fetchers to support dashboard flows
+  const fetchDoctorPrescriptions = async (forceRefresh = false) => {
+    if (!user?.userId || user?.role !== 'doctor') return;
+
+    const key = 'prescriptions';
+    if (!forceRefresh && data[key] && !isDataStale(key)) {
+      return data[key];
+    }
+
+    setLoading(true);
+    try {
+      const response = await dashboardService.getDoctorPrescriptions(user.userId, forceRefresh);
+      if (response.success) {
+        updateData(key, response.data);
+        return response.data;
+      } else {
+        setError(response.error);
+        return null;
+      }
+    } catch (error) {
+      setError(error.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchDoctorLabResults = async (forceRefresh = false) => {
+    if (!user?.userId || user?.role !== 'doctor') return;
+
+    const key = 'labResults';
+    if (!forceRefresh && data[key] && !isDataStale(key)) {
+      return data[key];
+    }
+
+    setLoading(true);
+    try {
+      // Currently no doctor-filtered lab results endpoint; use shared method
+      const response = await dashboardService.getLabResults();
+      if (response.success) {
+        updateData(key, response.data);
+        return response.data;
+      } else {
+        setError(response.error);
+        return null;
+      }
+    } catch (error) {
+      setError(error.message);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchDoctorMedicalRecords = async () => {
+    // Lightweight helper: return recent medical records captured via recent activity
+    return data.doctorRecentActivity?.recentMedicalRecords || [];
+  };
+
   const updateData = (key, newData) => {
     setData(prev => ({
       ...prev,
@@ -82,7 +140,7 @@ function DataProvider({ children }) {
 
   const fetchDoctorDashboard = async (forceRefresh = false) => {
     if (!user?.userId || user?.role !== 'doctor') return;
-    
+
     const key = 'doctorDashboard';
     if (!forceRefresh && data[key] && !isDataStale(key)) {
       return data[key];
@@ -90,7 +148,7 @@ function DataProvider({ children }) {
 
     setLoading(true);
     try {
-      const response = await doctorDashboardService.getDoctorDashboardStats(user.userId);
+      const response = await dashboardService.getDoctorDashboardStats(user.userId);
       if (response.success) {
         updateData(key, response.data);
         return response.data;
@@ -108,7 +166,7 @@ function DataProvider({ children }) {
 
   const fetchDoctorRecentActivity = async (forceRefresh = false) => {
     if (!user?.userId || user?.role !== 'doctor') return;
-    
+
     const key = 'doctorRecentActivity';
     if (!forceRefresh && data[key] && !isDataStale(key)) {
       return data[key];
@@ -116,7 +174,7 @@ function DataProvider({ children }) {
 
     setLoading(true);
     try {
-      const response = await doctorDashboardService.getDoctorRecentActivity(user.userId);
+      const response = await dashboardService.getDoctorRecentActivity(user.userId);
       if (response.success) {
         updateData(key, response.data);
         return response.data;
@@ -196,9 +254,10 @@ function DataProvider({ children }) {
     try {
       console.log('Fetching prescriptions for user role:', user?.role);
       
-      // Use appropriate service based on user role
-      const service = user?.role === 'doctor' ? doctorDashboardService : dashboardService;
-      const response = await service.getPrescriptions();
+      // Use appropriate method based on user role
+      const response = user?.role === 'doctor'
+        ? await dashboardService.getDoctorPrescriptions(user.userId)
+        : await dashboardService.getPrescriptions();
       
       if (response.success) {
         console.log(`Successfully fetched ${response.data?.length || 0} prescriptions`);
@@ -236,7 +295,7 @@ function DataProvider({ children }) {
 
     setLoading(true);
     try {
-      const response = await doctorDashboardService.createDirectPrescription(prescriptionData);
+      const response = await dashboardService.createDirectPrescription(prescriptionData);
       if (response.success) {
         // Refresh prescriptions to show the new one
         fetchPrescriptions(true);
@@ -258,7 +317,7 @@ function DataProvider({ children }) {
 
     setLoading(true);
     try {
-      const response = await doctorDashboardService.createAppointmentPrescription(prescriptionData);
+      const response = await dashboardService.createAppointmentPrescription(prescriptionData);
       if (response.success) {
         // Refresh prescriptions to show the new one
         fetchPrescriptions(true);
@@ -283,8 +342,7 @@ function DataProvider({ children }) {
 
     setLoading(true);
     try {
-      const service = user?.role === 'doctor' ? doctorDashboardService : dashboardService;
-      const response = await service.getLabResults();
+      const response = await dashboardService.getLabResults();
       if (response.success) {
         updateData(key, response.data);
         return response.data;
@@ -308,10 +366,7 @@ function DataProvider({ children }) {
 
     setLoading(true);
     try {
-      const service = user?.role === 'doctor' ? doctorDashboardService : dashboardService;
-      const response = user?.role === 'admin' 
-        ? await service.getNotifications('admin')
-        : await service.getNotifications();
+      const response = await dashboardService.getNotifications(user?.role === 'admin' ? 'admin' : 'doctor');
       if (response.success) {
         updateData(key, response.data);
         return response.data;
@@ -329,8 +384,7 @@ function DataProvider({ children }) {
 
   const markNotificationAsRead = async (notificationId) => {
     try {
-      const service = user?.role === 'doctor' ? doctorDashboardService : dashboardService;
-      const response = await service.markNotificationAsRead(notificationId);
+      const response = await dashboardService.markNotificationAsRead(notificationId);
       if (response.success) {
         // No automatic refresh - user can manually refresh if needed
         return response.data;
@@ -346,8 +400,7 @@ function DataProvider({ children }) {
 
   const markAllNotificationsAsRead = async () => {
     try {
-      const service = user?.role === 'doctor' ? doctorDashboardService : dashboardService;
-      const response = await service.markAllNotificationsAsRead();
+      const response = await dashboardService.markAllNotificationsAsRead();
       if (response.success) {
         // No automatic refresh - user can manually refresh if needed
         return response.data;
@@ -363,8 +416,7 @@ function DataProvider({ children }) {
 
   const deleteNotification = async (notificationId) => {
     try {
-      const service = user?.role === 'doctor' ? doctorDashboardService : dashboardService;
-      const response = await service.deleteNotification(notificationId);
+      const response = await dashboardService.deleteNotification(notificationId);
       if (response.success) {
         // Refresh notifications after deletion
         await fetchNotifications(true);
@@ -387,8 +439,7 @@ function DataProvider({ children }) {
 
     setLoading(true);
     try {
-      const service = user?.role === 'doctor' ? doctorDashboardService : dashboardService;
-      const response = await service.getChatRooms();
+      const response = await dashboardService.getChatRooms();
       if (response.success) {
         updateData(key, response.data);
         return response.data;
@@ -412,8 +463,7 @@ function DataProvider({ children }) {
 
     setLoading(true);
     try {
-      const service = user?.role === 'doctor' ? doctorDashboardService : dashboardService;
-      const response = await service.getChatMessages(roomId);
+      const response = await dashboardService.getChatMessages(roomId);
       if (response.success) {
         updateData(key, response.data);
         return response.data;
@@ -439,7 +489,7 @@ function DataProvider({ children }) {
 
     setLoading(true);
     try {
-      const response = await doctorDashboardService.getDoctorPatients(user.userId);
+      const response = await dashboardService.getDoctorPatients(user.userId);
       if (response.success) {
         updateData(key, response.data);
         return response.data;
@@ -465,7 +515,7 @@ function DataProvider({ children }) {
 
     setLoading(true);
     try {
-      const response = await doctorDashboardService.getDoctorAppointments(user.userId);
+      const response = await dashboardService.getDoctorAppointments(user.userId);
       if (response.success) {
         updateData(key, response.data);
         return response.data;
@@ -1514,6 +1564,9 @@ function DataProvider({ children }) {
     fetchDoctorRecentActivity,
     fetchDoctorAppointments,
     fetchDoctorPatients,
+    fetchDoctorPrescriptions,
+    fetchDoctorLabResults,
+    fetchDoctorMedicalRecords,
     fetchAdminDashboard,
     fetchAdminRecentActivity,
     fetchAdminAppointments,

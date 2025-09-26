@@ -5,6 +5,7 @@ import { Link, useNavigate } from "react-router-dom";
 import hospitalBackground from "../assets/images/ug-image.png";
 import ugLogo from "../assets/images/ug_logo.png";
 import { useAuth } from "../contexts/AuthContext";
+import { useData } from "../contexts/DataContext.jsx";
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -14,6 +15,8 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
   const navigate = useNavigate();
+
+  const { fetchNotifications } = useData();
 
   const handleChange = (e) => {
     setFormData({
@@ -32,6 +35,12 @@ const Login = () => {
       if (result.success) {
         toast.success("Login successful!");
         const userRole = result.user.role;
+        // Fire-and-forget minimal background fetch for notifications only
+        try {
+          fetchNotifications?.();
+        } catch {
+          // intentionally ignored
+        }
         navigate(`/${userRole}`);
       } else {
         toast.error(result.error || "Login failed");
